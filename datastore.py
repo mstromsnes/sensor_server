@@ -20,6 +20,7 @@ class SensorData(pa.DataFrameModel):
 
 class DataStore:
     def __init__(self, parquet_file: Union[Path, None] = None):
+        self._parquet_file = parquet_file
         if parquet_file is not None:
             self._dataframe = self._load_dataframe_from_parquet(parquet_file)
         else:
@@ -28,6 +29,13 @@ class DataStore:
 
     def _create_pending_queue(self):
         self._queue: list[SensorReading] = list()
+
+    def archive_data(self, parquet_file: Union[Path, None] = None):
+        if parquet_file is None and self._parquet_file is None:
+            return
+        path = parquet_file if parquet_file is not None else self._parquet_file
+        self._update_dataframe()
+        self._dataframe.to_parquet(path)
 
     @pa.check_types
     def _load_dataframe_from_parquet(self, parquet_file: Path) -> DataFrame[SensorData]:
@@ -54,6 +62,8 @@ class DataStore:
 
     def _write_reading_to_queue(self, reading: SensorReading):
         self._queue.append(reading)
+        if len(self._queue) > 1000:
+            self._update_dataframe()
 
     def add_reading(self, reading: SensorReading):
         self._write_reading_to_queue(reading)
