@@ -2,14 +2,32 @@ import logging
 import uvicorn
 from fastapi import FastAPI
 from sensor import SensorReading
+from datastore import DataStore
+from contextlib import asynccontextmanager
 
-app = FastAPI()
+datastore = DataStore("data.parquet")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    datastore.archive_data()
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 @app.post("/")
 def add_reading(reading: SensorReading):
     logging.log(logging.INFO, reading)
+    datastore.add_reading(reading)
     return reading
+
+
+@app.get("/")
+def tail():
+    print(datastore.tail())
+    return str(datastore.tail())
 
 
 def main():
