@@ -2,14 +2,23 @@ import logging
 import uvicorn
 from fastapi import FastAPI
 from sensor import SensorReading
+from datastore import DataStore
 
 app = FastAPI()
+datastore = DataStore()
 
 
 @app.post("/")
 def add_reading(reading: SensorReading):
     logging.log(logging.INFO, reading)
+    datastore.add_reading(reading)
     return reading
+
+
+@app.get("/")
+def tail():
+    print(datastore.tail())
+    return str(datastore.tail())
 
 
 def main():
