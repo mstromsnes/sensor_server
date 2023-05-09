@@ -1,11 +1,14 @@
 import logging
 import uvicorn
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from sensor import SensorReading
 from datastore import DataStore
+from pathlib import Path
 from contextlib import asynccontextmanager
 
-datastore = DataStore("data.parquet")
+ARCHIVE_PATH = Path("archive/data.parquet")
+datastore = DataStore(ARCHIVE_PATH)
 
 
 @asynccontextmanager
@@ -26,8 +29,13 @@ def add_reading(reading: SensorReading):
 
 @app.get("/")
 def tail():
-    print(datastore.tail())
     return str(datastore.tail())
+
+
+@app.get("/archive")
+async def send_archive() -> FileResponse:
+    datastore.archive_data(ARCHIVE_PATH)
+    return FileResponse(ARCHIVE_PATH)
 
 
 def main():

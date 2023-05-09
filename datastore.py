@@ -1,6 +1,6 @@
 import pandas as pd
 from pathlib import Path
-from typing import Union
+from typing import Union, Optional
 import pandera as pa
 from pandera.typing import DataFrame, Series, Index
 import logging
@@ -24,7 +24,7 @@ class DataStore:
         if parquet_file is not None:
             self._dataframe = self._load_dataframe_from_parquet(parquet_file)
         else:
-            self._dataframe = self._create_empty_dataframe()
+            self._dataframe = None
         self._create_pending_queue()
 
     def _create_pending_queue(self):
@@ -38,12 +38,14 @@ class DataStore:
         self._dataframe.to_parquet(path)
 
     @pa.check_types
-    def _load_dataframe_from_parquet(self, parquet_file: Path) -> DataFrame[SensorData]:
+    def _load_dataframe_from_parquet(
+        self, parquet_file: Path
+    ) -> Optional[DataFrame[SensorData]]:
         try:
             return pd.read_parquet(parquet_file)
         except Exception:
             logging.log(logging.DEBUG, f"{parquet_file=} failed to load", Exception)
-            return self._create_empty_dataframe()
+            return None
 
     @pa.check_types
     def _load_dataframe_from_queue(self) -> DataFrame[SensorData]:
