@@ -32,9 +32,9 @@ class Unit(MemberStrEnum):
 
 
 class SensorReading(BaseModel):
-    timestamp: datetime
     sensor_type: str
     sensor: str
+    timestamp: datetime
 
     reading: float
     unit: str
@@ -60,7 +60,7 @@ class SensorReading(BaseModel):
             raise ValueError("Not a legitimate SensorType value")
         return v
 
-    _indexes = ["timestamp", "sensor", "sensor_type"]
+    _indexes = ["sensor_type", "sensor", "timestamp"]
     _columns = ["reading", "unit"]
 
     def index(self):

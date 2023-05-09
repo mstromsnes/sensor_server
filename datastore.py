@@ -8,11 +8,11 @@ from sensor import Sensor, SensorType, Unit, SensorReading
 
 
 class SensorData(pa.DataFrameModel):
-    timestamp: Index[pa.DateTime] = pa.Field(check_name=True)
-    sensor: Index[str] = pa.Field(is_in_enum=Sensor)
     sensor_type: Index[str] = pa.Field(
         is_in_enum=SensorType,
     )
+    sensor: Index[str] = pa.Field(is_in_enum=Sensor)
+    timestamp: Index[pa.DateTime] = pa.Field(check_name=True)
 
     reading: Series[float]
     unit: Series[str] = pa.Field(is_in_enum=Unit)
