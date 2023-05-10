@@ -42,7 +42,7 @@ class DataStore:
         self, parquet_file: Path
     ) -> Optional[DataFrame[SensorData]]:
         try:
-            return pd.read_parquet(parquet_file)
+            return pd.read_parquet(parquet_file).sort_index()
         except Exception:
             logging.log(logging.DEBUG, f"{parquet_file=} failed to load", Exception)
             return None
@@ -56,7 +56,8 @@ class DataStore:
     @pa.check_types
     def _merge_queue_with_dataframe(self) -> DataFrame[SensorData]:
         new_dataframe = self._load_dataframe_from_queue()
-        return pd.concat([self._dataframe, new_dataframe])
+        new_dataframe = pd.concat([self._dataframe, new_dataframe]).sort_index()
+        return new_dataframe
 
     @pa.check_types
     def _create_empty_dataframe(self) -> DataFrame[SensorData]:
