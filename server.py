@@ -1,9 +1,11 @@
 import logging
 import uvicorn
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, Body
+from fastapi.responses import FileResponse, Response
 from sensor import SensorReading
 from datastore import DataStore
+from datetime import datetime
+from typing import Annotated
 from pathlib import Path
 from contextlib import asynccontextmanager
 
@@ -30,6 +32,12 @@ async def add_reading(reading: SensorReading):
 @app.get("/")
 async def tail():
     return str(datastore.tail())
+
+
+@app.post("/archive/")
+def send_data_since(timestamp: Annotated[datetime, Body()]) -> Response:
+    parquet_bytes = datastore.get_data_since_timestamp(timestamp)
+    return Response(parquet_bytes)
 
 
 @app.get("/archive/")

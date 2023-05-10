@@ -4,6 +4,7 @@ from typing import Union, Optional
 import pandera as pa
 from pandera.typing import DataFrame, Series, Index
 import logging
+import fsspec
 from sensor import Sensor, SensorType, Unit, SensorReading
 
 
@@ -36,6 +37,26 @@ class DataStore:
         path = parquet_file if parquet_file is not None else self._parquet_file
         self._update_dataframe()
         self._dataframe.to_parquet(path)
+
+    def get_data_since_timestamp(self, timestamp: pa.DateTime) -> bytes:
+        df = self._dataframe.loc[(slice(None), slice(None), slice(timestamp, None)), :]
+        SensorData.validate(df)
+
+        def get_bytes_from_fastparquet(df: pd.DataFrame) -> bytes:
+            """Fastparquet version 2023.4.0 closes the file/buffer itself after its done. For a file this is ok. For a buffer this clears out the buffer, deleting the data.
+            When passing path=None to to_parquet() Pandas is supposed to return the bytes. But it does it the same way I tried. It uses a BytesIO buffer that gets closed,
+            then tries to return the bytes from the buffer, which aren't there. Code from pandas own documentation doesn't work because of this bug.
+
+            This is a workaround to create it as an in-memory file we can reopen to get the bytes from.
+            If using pyarrow we don't need to do this, but pyarrow doesn't install on the RPi easily.
+            """
+            in_memory_tempfile = "memory://temp.parquet"
+            df.to_parquet(in_memory_tempfile)
+            with fsspec.open(in_memory_tempfile, "rb") as f:
+                contents = f.read()
+            return contents
+
+        return get_bytes_from_fastparquet(df)
 
     @pa.check_types
     def _load_dataframe_from_parquet(
