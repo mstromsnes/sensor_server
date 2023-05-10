@@ -21,19 +21,19 @@ app = FastAPI(lifespan=lifespan)
 
 
 @app.post("/")
-def add_reading(reading: SensorReading):
+async def add_reading(reading: SensorReading):
     logging.log(logging.INFO, reading)
     datastore.add_reading(reading)
     return reading
 
 
 @app.get("/")
-def tail():
+async def tail():
     return str(datastore.tail())
 
 
-@app.get("/archive")
-async def send_archive() -> FileResponse:
+@app.get("/archive/")
+def send_archive() -> FileResponse:
     datastore.archive_data(ARCHIVE_PATH)
     return FileResponse(ARCHIVE_PATH)
 
