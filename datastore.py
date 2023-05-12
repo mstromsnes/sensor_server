@@ -4,8 +4,14 @@ from typing import Union, Optional
 import pandera as pa
 from pandera.typing import DataFrame, Series, Index
 import logging
-import fsspec
 from sensor import Sensor, SensorType, Unit, SensorReading
+from enum import Enum, auto
+from io import BytesIO
+
+
+class Format(Enum):
+    Parquet = auto()
+    JSON = auto()
 
 
 class SensorData(pa.DataFrameModel):
