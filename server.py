@@ -1,9 +1,9 @@
 import logging
 import uvicorn
 from fastapi import FastAPI, Body
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, PlainTextResponse
 from sensor import SensorReading
-from datastore import DataStore
+from datastore import DataStore, Format
 from datetime import datetime
 from typing import Annotated
 from pathlib import Path
@@ -34,16 +34,28 @@ async def tail():
     return str(datastore.tail())
 
 
-@app.post("/archive/")
+@app.post("/archive/parquet/")
 def send_data_since(timestamp: Annotated[datetime, Body()]) -> Response:
     parquet_bytes = datastore.get_data_since_timestamp(timestamp)
     return Response(parquet_bytes)
 
 
-@app.get("/archive/")
-def send_archive() -> FileResponse:
-    datastore.archive_data(ARCHIVE_PATH)
-    return FileResponse(ARCHIVE_PATH)
+@app.get("/archive/parquet/")
+def send_archive() -> Response:
+    parquet_bytes = datastore.get_archive()
+    return Response(parquet_bytes)
+
+
+@app.post("/archive/json/")
+def send_data_since(timestamp: Annotated[datetime, Body()]):
+    json = datastore.get_data_since_timestamp(timestamp, Format.JSON)
+    return json
+
+
+@app.get("/archive/json/")
+def send_archive():
+    json = datastore.get_archive(format=Format.JSON)
+    return json
 
 
 def main():
