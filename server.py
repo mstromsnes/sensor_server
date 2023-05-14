@@ -1,11 +1,13 @@
 import logging
 import uvicorn
-from fastapi import FastAPI, Body
+from fastapi import FastAPI, Body, Request
 from fastapi.responses import FileResponse, Response, PlainTextResponse
+import requests
+from starlette.datastructures import Address
 from sensor import SensorReading
 from datastore import DataStore, Format
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Optional
 from pathlib import Path
 from contextlib import asynccontextmanager
 
@@ -20,11 +22,18 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.proxy: Optional[Address] = None
+
+
+def client_and_endpoint_url(client: Address, endpoint: str):
+    return f"http://{client.host}:{client.port}{endpoint}"
 
 
 @app.post("/")
 async def add_reading(reading: SensorReading):
     logging.log(logging.INFO, reading)
+    if app.proxy is not None:
+        requests.post(client_and_endpoint_url(app.proxy, "/"), json=reading)
     datastore.add_reading(reading)
     return reading
 
@@ -56,6 +65,11 @@ def send_data_since(timestamp: Annotated[datetime, Body()]):
 def send_archive():
     json = datastore.serialize_archive(format=Format.JSON)
     return json
+
+
+@app.post("/register_proxy")
+def register_proxy_server(request: Request):
+    app.proxy = request.client
 
 
 def main():
