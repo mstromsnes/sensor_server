@@ -36,25 +36,25 @@ async def tail():
 
 @app.post("/archive/parquet/")
 def send_data_since(timestamp: Annotated[datetime, Body()]) -> Response:
-    parquet_bytes = datastore.get_data_since_timestamp(timestamp)
+    parquet_bytes = datastore.serialize_archive_since_timestamp(timestamp)
     return Response(parquet_bytes)
 
 
 @app.get("/archive/parquet/")
 def send_archive() -> Response:
-    parquet_bytes = datastore.get_archive()
+    parquet_bytes = datastore.serialize_archive()
     return Response(parquet_bytes)
 
 
 @app.post("/archive/json/")
 def send_data_since(timestamp: Annotated[datetime, Body()]):
-    json = datastore.get_data_since_timestamp(timestamp, Format.JSON)
+    json = datastore.serialize_archive_since_timestamp(timestamp, Format.JSON)
     return json
 
 
 @app.get("/archive/json/")
 def send_archive():
-    json = datastore.get_archive(format=Format.JSON)
+    json = datastore.serialize_archive(format=Format.JSON)
     return json
 
 

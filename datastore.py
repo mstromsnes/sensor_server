@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Union, Optional
 import pandera as pa
 from pandera.typing import DataFrame, Series, Index
+import remotereader
 import logging
 from sensor import Sensor, SensorType, Unit, SensorReading
 from enum import Enum, auto
@@ -26,13 +27,22 @@ class SensorData(pa.DataFrameModel):
 
 
 class DataStore:
-    def __init__(self, parquet_file: Union[Path, None] = None):
+    def __init__(
+        self, parquet_file: Union[Path, None] = None, proxy: Optional[str] = None
+    ):
         self._parquet_file = parquet_file
-        if parquet_file is not None:
+        if proxy is not None:
+            self._dataframe = self._download_archive_from_proxy(proxy)
+        elif parquet_file is not None:
             self._dataframe = self._load_dataframe_from_parquet(parquet_file)
         else:
             self._dataframe = None
         self._create_pending_queue()
+
+    @pa.check_types
+    def _download_archive_from_proxy(self, proxy) -> DataFrame[SensorData]:
+        archive = remotereader.download_archive(proxy)
+        return pd.read_parquet(archive)
 
     def archive_data(self, parquet_file: Union[Path, None] = None):
         if parquet_file is None and self._parquet_file is None:
@@ -41,7 +51,7 @@ class DataStore:
         self._update_dataframe()
         self._dataframe.to_parquet(path)
 
-    def get_data_since_timestamp(
+    def serialize_archive_since_timestamp(
         self, timestamp: pa.DateTime, format: Format = Format.Parquet
     ) -> bytes:
         self._update_dataframe()
@@ -53,7 +63,7 @@ class DataStore:
         elif format == Format.JSON:
             return df.to_json(orient="table")
 
-    def get_archive(self, format: Format = Format.Parquet):
+    def serialize_archive(self, format: Format = Format.Parquet):
         self._update_dataframe()
         if format == Format.Parquet:
             return self._get_bytes_from_fastparquet(self._dataframe)
