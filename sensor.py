@@ -34,7 +34,7 @@ class Unit(MemberStrEnum):
 class SensorReading(BaseModel):
     sensor_type: str
     sensor: str
-    timestamp: datetime
+    timestamp: str
 
     reading: float
     unit: str

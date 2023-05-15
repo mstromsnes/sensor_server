@@ -20,7 +20,7 @@ class SensorData(pa.DataFrameModel):
         is_in_enum=SensorType,
     )
     sensor: Index[str] = pa.Field(is_in_enum=Sensor)
-    timestamp: Index[pa.DateTime] = pa.Field(check_name=True)
+    timestamp: Index[pa.DateTime] = pa.Field(check_name=True, coerce=True)
 
     reading: Series[float]
     unit: Series[str] = pa.Field(is_in_enum=Unit)
@@ -34,7 +34,7 @@ class DataStore:
         if proxy is not None:
             self._dataframe = self._download_archive_from_proxy(proxy)
         elif parquet_file is not None:
-            self._dataframe = self._load_dataframe_from_parquet(parquet_file)
+            self._dataframe = self._load_dataframe_from_file(parquet_file)
         else:
             self._dataframe = None
         self._create_pending_queue()
@@ -81,7 +81,7 @@ class DataStore:
         self._queue: list[SensorReading] = list()
 
     @pa.check_types
-    def _load_dataframe_from_parquet(
+    def _load_dataframe_from_file(
         self, parquet_file: Path
     ) -> Optional[DataFrame[SensorData]]:
         try:

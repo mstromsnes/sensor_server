@@ -1,4 +1,4 @@
-import requests
+import httpx
 from sensor import SensorReading
 
 
@@ -14,4 +14,4 @@ class ForwardingManager:
 
     def broadcast(self, message: SensorReading):
         for endpoint in self.forwarding_endpoints:
-            requests.post(endpoint, message.json())
+            httpx.post(endpoint, json=message.json())
