@@ -5,8 +5,11 @@ from fastapi import (
     Body,
     Request,
     BackgroundTasks,
+    WebSocket,
+    WebSocketDisconnect,
 )
 from fastapi.responses import Response
+from publisher import Publisher
 from sensor import SensorReading
 from datastore import DataStore, Format
 from datetime import datetime
@@ -17,6 +20,7 @@ from contextlib import asynccontextmanager
 
 ARCHIVE_PATH = Path("archive/data.parquet")
 datastore = DataStore(ARCHIVE_PATH)
+publisher = Publisher()
 forwarder = ForwardingManager()
 
 
@@ -31,6 +35,7 @@ app = FastAPI(lifespan=lifespan)
 
 @app.post("/")
 async def add_reading(reading: SensorReading, background_tasks: BackgroundTasks):
+    background_tasks.add_task(publisher.broadcast, reading)
     background_tasks.add_task(forwarder.broadcast, reading)
     datastore.add_reading(reading)
 
@@ -83,6 +88,15 @@ def delete_forwarding_server(request: Request):
         host, port = request.client
         forwarder.remove_forwarding_endpoint(client_port_endpoint_url(host, port, "/"))
 
+
+@app.websocket("/")
+async def handle_subscriber(websocket: WebSocket):
+    await publisher.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        publisher.disconnect(websocket)
 
 
 def main():
