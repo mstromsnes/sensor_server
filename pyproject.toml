@@ -17,6 +17,7 @@ fastparquet = "^2023.4.0"
 [tool.poetry.group.dev.dependencies]
 black = "^23.3.0"
 mypy = "^1.2.0"
+pytest = "^7.3.1"
 httpx = "^0.24.0"
 
 [build-system]
