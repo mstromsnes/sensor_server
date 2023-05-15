@@ -1,18 +1,23 @@
 import logging
 import uvicorn
-from fastapi import FastAPI, Body, Request
-from fastapi.responses import FileResponse, Response, PlainTextResponse
-import requests
-from starlette.datastructures import Address
+from fastapi import (
+    FastAPI,
+    Body,
+    Request,
+    BackgroundTasks,
+)
+from fastapi.responses import Response
 from sensor import SensorReading
 from datastore import DataStore, Format
 from datetime import datetime
-from typing import Annotated, Optional
+from typing import Annotated, Union
 from pathlib import Path
+from forwarding import ForwardingManager
 from contextlib import asynccontextmanager
 
 ARCHIVE_PATH = Path("archive/data.parquet")
 datastore = DataStore(ARCHIVE_PATH)
+forwarder = ForwardingManager()
 
 
 @asynccontextmanager
@@ -22,20 +27,12 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-app.proxy: Optional[Address] = None
-
-
-def client_and_endpoint_url(client: Address, endpoint: str):
-    return f"http://{client.host}:{client.port}{endpoint}"
 
 
 @app.post("/")
-async def add_reading(reading: SensorReading):
-    logging.log(logging.INFO, reading)
-    if app.proxy is not None:
-        requests.post(client_and_endpoint_url(app.proxy, "/"), json=reading)
+async def add_reading(reading: SensorReading, background_tasks: BackgroundTasks):
+    background_tasks.add_task(forwarder.broadcast, reading)
     datastore.add_reading(reading)
-    return reading
 
 
 @app.get("/")
@@ -67,9 +64,25 @@ def send_archive():
     return json
 
 
-@app.post("/register_proxy")
-def register_proxy_server(request: Request):
-    app.proxy = request.client
+def client_port_endpoint_url(client: str, port: Union[str, int], endpoint: str):
+    return f"http://{client}:{port}{endpoint}"
+
+
+@app.post("/register_forwarding_server/")
+def register_forwarding_server(request: Request):
+    if request.client is not None:
+        host, port = request.client
+        forwarder.register_forwarding_endpoint(
+            client_port_endpoint_url(host, port, "/")
+        )
+
+
+@app.delete("/register_forwarding_server/")
+def delete_forwarding_server(request: Request):
+    if request.client is not None:
+        host, port = request.client
+        forwarder.remove_forwarding_endpoint(client_port_endpoint_url(host, port, "/"))
+
 
 
 def main():
