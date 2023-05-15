@@ -1,16 +1,23 @@
 import logging
 import uvicorn
-from fastapi import FastAPI, Body
-from fastapi.responses import FileResponse, Response, PlainTextResponse
+from fastapi import (
+    FastAPI,
+    Body,
+    Request,
+    BackgroundTasks,
+)
+from fastapi.responses import Response
 from sensor import SensorReading
 from datastore import DataStore, Format
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Union
 from pathlib import Path
+from forwarding import ForwardingManager
 from contextlib import asynccontextmanager
 
 ARCHIVE_PATH = Path("archive/data.parquet")
 datastore = DataStore(ARCHIVE_PATH)
+forwarder = ForwardingManager()
 
 
 @asynccontextmanager
@@ -23,10 +30,9 @@ app = FastAPI(lifespan=lifespan)
 
 
 @app.post("/")
-async def add_reading(reading: SensorReading):
-    logging.log(logging.INFO, reading)
+async def add_reading(reading: SensorReading, background_tasks: BackgroundTasks):
+    background_tasks.add_task(forwarder.broadcast, reading)
     datastore.add_reading(reading)
-    return reading
 
 
 @app.get("/")
@@ -36,26 +42,47 @@ async def tail():
 
 @app.post("/archive/parquet/")
 def send_data_since(timestamp: Annotated[datetime, Body()]) -> Response:
-    parquet_bytes = datastore.get_data_since_timestamp(timestamp)
+    parquet_bytes = datastore.serialize_archive_since_timestamp(timestamp)
     return Response(parquet_bytes)
 
 
 @app.get("/archive/parquet/")
 def send_archive() -> Response:
-    parquet_bytes = datastore.get_archive()
+    parquet_bytes = datastore.serialize_archive()
     return Response(parquet_bytes)
 
 
 @app.post("/archive/json/")
 def send_data_since(timestamp: Annotated[datetime, Body()]):
-    json = datastore.get_data_since_timestamp(timestamp, Format.JSON)
+    json = datastore.serialize_archive_since_timestamp(timestamp, Format.JSON)
     return json
 
 
 @app.get("/archive/json/")
 def send_archive():
-    json = datastore.get_archive(format=Format.JSON)
+    json = datastore.serialize_archive(format=Format.JSON)
     return json
+
+
+def client_port_endpoint_url(client: str, port: Union[str, int], endpoint: str):
+    return f"http://{client}:{port}{endpoint}"
+
+
+@app.post("/register_forwarding_server/")
+def register_forwarding_server(request: Request):
+    if request.client is not None:
+        host, port = request.client
+        forwarder.register_forwarding_endpoint(
+            client_port_endpoint_url(host, port, "/")
+        )
+
+
+@app.delete("/register_forwarding_server/")
+def delete_forwarding_server(request: Request):
+    if request.client is not None:
+        host, port = request.client
+        forwarder.remove_forwarding_endpoint(client_port_endpoint_url(host, port, "/"))
+
 
 
 def main():
