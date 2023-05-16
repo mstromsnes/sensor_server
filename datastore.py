@@ -27,29 +27,26 @@ class SensorData(pa.DataFrameModel):
 
 
 class DataStore:
-    def __init__(
-        self, parquet_file: Union[Path, None] = None, proxy: Optional[str] = None
-    ):
-        self._parquet_file = parquet_file
-        if proxy is not None:
-            self._dataframe = self._download_archive_from_proxy(proxy)
-        elif parquet_file is not None:
-            self._dataframe = self._load_dataframe_from_file(parquet_file)
-        else:
-            self._dataframe = None
+    def __init__(self, *, parquet_file=None, proxy=None):
+        self._dataframe = None
+        self.parquet_file = parquet_file
+        self.proxy = proxy
         self._create_pending_queue()
+
+    def load_archive(self):
+        if self.proxy is not None:
+            self._dataframe = self._download_archive_from_proxy(self.proxy)
+        elif self.parquet_file is not None:
+            self._dataframe = self._load_dataframe_from_file(self.parquet_file)
 
     @pa.check_types
     def _download_archive_from_proxy(self, proxy) -> DataFrame[SensorData]:
         archive = remotereader.download_archive(proxy)
         return pd.read_parquet(archive)
 
-    def archive_data(self, parquet_file: Union[Path, None] = None):
-        if parquet_file is None and self._parquet_file is None:
-            return
-        path = parquet_file if parquet_file is not None else self._parquet_file
+    def archive_data(self, parquet_file: Path):
         self._update_dataframe()
-        self._dataframe.to_parquet(path)
+        self._dataframe.to_parquet(parquet_file)
 
     def serialize_archive_since_timestamp(
         self, timestamp: pa.DateTime, format: Format = Format.Parquet
@@ -112,6 +109,8 @@ class DataStore:
             self._update_dataframe()
 
     def _update_dataframe(self):
+        if self._dataframe is None:
+            self.load_archive()
         if self._queue:
             self._dataframe = self._merge_queue_with_dataframe()
             self._create_pending_queue()  # Clear out the buffer

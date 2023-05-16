@@ -8,7 +8,7 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
-from fastapi.responses import Response
+from fastapi.responses import Response, PlainTextResponse
 from publisher import Publisher
 from sensor import SensorReading
 from datastore import DataStore, Format
@@ -19,7 +19,7 @@ from forwarding import ForwardingManager
 from contextlib import asynccontextmanager
 
 ARCHIVE_PATH = Path("archive/data.parquet")
-datastore = DataStore(ARCHIVE_PATH)
+datastore = DataStore(parquet_file=ARCHIVE_PATH)
 publisher = Publisher()
 forwarder = ForwardingManager()
 
@@ -27,7 +27,7 @@ forwarder = ForwardingManager()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
-    datastore.archive_data()
+    datastore.archive_data(ARCHIVE_PATH)
 
 
 app = FastAPI(lifespan=lifespan)
@@ -87,6 +87,11 @@ def delete_forwarding_server(request: Request):
     if request.client is not None:
         host, port = request.client
         forwarder.remove_forwarding_endpoint(client_port_endpoint_url(host, port, "/"))
+
+
+@app.get("/helloworld/")
+def hello() -> PlainTextResponse:
+    return PlainTextResponse("Hello World!")
 
 
 @app.websocket("/")
