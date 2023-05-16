@@ -19,7 +19,7 @@ from forwarding import ForwardingManager
 from contextlib import asynccontextmanager
 
 ARCHIVE_PATH = Path("archive/data.parquet")
-datastore = DataStore(ARCHIVE_PATH)
+datastore = DataStore(parquet_file=ARCHIVE_PATH)
 publisher = Publisher()
 forwarder = ForwardingManager()
 
@@ -27,7 +27,7 @@ forwarder = ForwardingManager()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
-    datastore.archive_data()
+    datastore.archive_data(ARCHIVE_PATH)
 
 
 app = FastAPI(lifespan=lifespan)
