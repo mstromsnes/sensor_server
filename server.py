@@ -8,7 +8,7 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
-from fastapi.responses import Response
+from fastapi.responses import Response, PlainTextResponse
 from publisher import Publisher
 from sensor import SensorReading
 from datastore import DataStore, Format
@@ -87,6 +87,11 @@ def delete_forwarding_server(request: Request):
     if request.client is not None:
         host, port = request.client
         forwarder.remove_forwarding_endpoint(client_port_endpoint_url(host, port, "/"))
+
+
+@app.get("/helloworld/")
+def hello() -> PlainTextResponse:
+    return PlainTextResponse("Hello World!")
 
 
 @app.websocket("/")
