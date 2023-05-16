@@ -1,4 +1,4 @@
-import requests
+import httpx
 from fastapi import HTTPException
 from io import BytesIO
 import pandera as pa
@@ -25,7 +25,7 @@ def download_archive(
 ):
     try:
         response = send_request(url, timestamp, format)
-    except requests.ConnectionError:
+    except httpx.TransportError:
         raise ArchiveNotAvailableException
 
     if response.status_code != 200:
@@ -42,27 +42,27 @@ def send_request(
     format_endpoint = format.value
     request_url = url + ARCHIVE_ENDPOINT + format_endpoint
     if timestamp is None:
-        response = requests.get(request_url)
+        response = httpx.get(request_url)
     else:
-        response = requests.post(request_url, json=str(timestamp))
+        response = httpx.post(request_url, json=str(timestamp))
     return response
 
 
-def get_bytes_content(response: requests.Response) -> BytesIO:
+def get_bytes_content(response: httpx.Response) -> BytesIO:
     buffer = BytesIO()
     buffer.write(response.content)
     buffer.seek(0)
     return buffer
 
 
-def extract_payload(response: requests.Response, format):
+def extract_payload(response: httpx.Response, format):
     if format is Format.Parquet:
         return get_bytes_content(response)
     if format is Format.JSON:
         return response.json()
 
 
-def log_response(response: requests.Response):
+def log_response(response: httpx.Response):
     size = response.headers["content-length"]
     logging.info(f"{format=} Response Size={size}")
     logging.debug(f"{response.status_code=}")
