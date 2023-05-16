@@ -7,6 +7,7 @@ from fastapi import (
     BackgroundTasks,
     WebSocket,
     WebSocketDisconnect,
+    Depends,
 )
 from fastapi.responses import Response, PlainTextResponse
 from publisher import Publisher
@@ -19,13 +20,30 @@ from forwarding import ForwardingManager
 from contextlib import asynccontextmanager
 
 ARCHIVE_PATH = Path("archive/data.parquet")
-datastore = DataStore(parquet_file=ARCHIVE_PATH)
-publisher = Publisher()
-forwarder = ForwardingManager()
+DATASTORE = DataStore(parquet_file=ARCHIVE_PATH)
+PUBLISHER = Publisher()
+FORWARDER = ForwardingManager()
+
+
+def get_datastore():
+    return DATASTORE
+
+
+def get_publisher():
+    return PUBLISHER
+
+
+def get_forwarder():
+    return FORWARDER
+
+
+DataStoreDep = Annotated[DataStore, Depends(get_datastore)]
+PublisherDep = Annotated[Publisher, Depends(get_publisher)]
+ForwarderDep = Annotated[ForwardingManager, Depends(get_forwarder)]
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI, datastore: DataStoreDep):
     yield
     datastore.archive_data(ARCHIVE_PATH)
 
@@ -34,37 +52,45 @@ app = FastAPI(lifespan=lifespan)
 
 
 @app.post("/")
-async def add_reading(reading: SensorReading, background_tasks: BackgroundTasks):
+async def add_reading(
+    reading: SensorReading,
+    background_tasks: BackgroundTasks,
+    datastore: DataStoreDep,
+    publisher: PublisherDep,
+    forwarder: ForwarderDep,
+):
     background_tasks.add_task(publisher.broadcast, reading)
     background_tasks.add_task(forwarder.broadcast, reading)
     datastore.add_reading(reading)
 
 
 @app.get("/")
-async def tail():
+async def tail(datastore: DataStoreDep):
     return str(datastore.tail())
 
 
 @app.post("/archive/parquet/")
-def send_data_since(timestamp: Annotated[datetime, Body()]) -> Response:
+def send_data_since(
+    timestamp: Annotated[datetime, Body()], datastore: DataStoreDep
+) -> Response:
     parquet_bytes = datastore.serialize_archive_since_timestamp(timestamp)
     return Response(parquet_bytes)
 
 
 @app.get("/archive/parquet/")
-def send_archive() -> Response:
+def send_archive(datastore: DataStoreDep) -> Response:
     parquet_bytes = datastore.serialize_archive()
     return Response(parquet_bytes)
 
 
 @app.post("/archive/json/")
-def send_data_since(timestamp: Annotated[datetime, Body()]):
+def send_data_since(timestamp: Annotated[datetime, Body()], datastore: DataStoreDep):
     json = datastore.serialize_archive_since_timestamp(timestamp, Format.JSON)
     return json
 
 
 @app.get("/archive/json/")
-def send_archive():
+def send_archive(datastore: DataStoreDep):
     json = datastore.serialize_archive(format=Format.JSON)
     return json
 
@@ -74,7 +100,7 @@ def client_port_endpoint_url(client: str, port: Union[str, int], endpoint: str):
 
 
 @app.post("/register_forwarding_server/")
-def register_forwarding_server(request: Request):
+def register_forwarding_server(request: Request, forwarder: ForwarderDep):
     if request.client is not None:
         host, port = request.client
         forwarder.register_forwarding_endpoint(
@@ -83,7 +109,7 @@ def register_forwarding_server(request: Request):
 
 
 @app.delete("/register_forwarding_server/")
-def delete_forwarding_server(request: Request):
+def delete_forwarding_server(request: Request, forwarder: ForwarderDep):
     if request.client is not None:
         host, port = request.client
         forwarder.remove_forwarding_endpoint(client_port_endpoint_url(host, port, "/"))
