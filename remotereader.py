@@ -2,7 +2,7 @@ import httpx
 from fastapi import HTTPException
 from io import BytesIO
 import pandera as pa
-from enum import Enum
+from format import Format
 from typing import Optional
 import logging
 
@@ -13,11 +13,6 @@ logger = logging.getLogger("remotereader")
 
 class ArchiveNotAvailableException(Exception):
     ...
-
-
-class Format(Enum):
-    Parquet = "parquet/"
-    JSON = "json/"
 
 
 def download_archive(

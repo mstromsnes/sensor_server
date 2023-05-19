@@ -1,6 +1,6 @@
 import pandas as pd
 from pathlib import Path
-from typing import Union, Optional
+from format import Format
 import pandera as pa
 from pandera.typing import DataFrame, Series, Index
 import remotereader
@@ -9,21 +9,7 @@ from sensor import Sensor, SensorType, Unit, SensorReading
 from enum import Enum, auto
 from io import BytesIO
 
-
-class Format(Enum):
-    Parquet = auto()
-    JSON = auto()
-
-
-class SensorData(pa.DataFrameModel):
-    sensor_type: Index[str] = pa.Field(
-        is_in_enum=SensorType,
-    )
-    sensor: Index[str] = pa.Field(is_in_enum=Sensor)
-    timestamp: Index[pa.DateTime] = pa.Field(check_name=True, coerce=True)
-
-    reading: Series[float]
-    unit: Series[str] = pa.Field(is_in_enum=Unit)
+log = logging.getLogger("datastore")
 
 
 class DataStore:
