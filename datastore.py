@@ -5,9 +5,7 @@ import pandera as pa
 from pandera.typing import DataFrame, Series, Index
 import remotereader
 import logging
-from sensor import Sensor, SensorType, Unit, SensorReading
-from enum import Enum, auto
-from io import BytesIO
+from sensor import SensorReading, SensorData
 
 log = logging.getLogger("datastore")
 
