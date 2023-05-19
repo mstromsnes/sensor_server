@@ -14,6 +14,11 @@ timestamp = pd.Timestamp.fromisoformat(TIME_ISO_FORMAT)
 delta = pd.Timedelta(seconds=1)
 
 
+@pytest.fixture
+def archive_timestamp():
+    return pd.Timestamp.fromisoformat(TIME_ISO_FORMAT)
+
+
 def generate_from_delta(num_delta: int):
     return [
         SensorReading(
@@ -55,7 +60,7 @@ def readings() -> list[SensorReading]:
 
 
 @pytest.fixture
-def dataframe(readings: list[SensorReading]):
+def dataframe(readings: list[SensorReading]) -> pd.DataFrame:
     return SensorData.make_dataframe_from_list_of_readings(readings)
 
 
@@ -69,3 +74,32 @@ def serialized_json_frame(dataframe: pd.DataFrame):
     return Format.JSON.serialize(dataframe)
 
 
+@pytest.fixture
+def archive_file(dataframe: pd.DataFrame, tmp_path):
+    path = tmp_path / "test.parquet"
+    Format.Parquet.write(dataframe, path)
+    return path
+
+
+@pytest.fixture
+def datastore(archive_file):
+    return DataStore(parquet_file=archive_file)
+
+
+@pytest.fixture
+def publisher():
+    return Publisher()
+
+
+@pytest.fixture
+def forwarder():
+    return ForwardingManager()
+
+
+@pytest.fixture
+def client(datastore, publisher, forwarder) -> TestClient:
+    app.dependency_overrides[get_datastore] = lambda: datastore
+    app.dependency_overrides[get_publisher] = lambda: publisher
+    app.dependency_overrides[get_forwarder] = lambda: forwarder
+
+    return TestClient(app)

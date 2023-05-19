@@ -10,12 +10,15 @@ from fastapi import (
     Depends,
 )
 from fastapi.responses import Response, PlainTextResponse
+from fastapi_utils.tasks import repeat_every
 from publisher import Publisher
 from sensor import SensorReading
-from datastore import DataStore, Format
+from datastore import DataStore
+from format import Format
 from datetime import datetime
 from typing import Annotated, Union
 from pathlib import Path
+import pandas as pd
 from forwarding import ForwardingManager
 from contextlib import asynccontextmanager
 
@@ -42,10 +45,20 @@ PublisherDep = Annotated[Publisher, Depends(get_publisher)]
 ForwarderDep = Annotated[ForwardingManager, Depends(get_forwarder)]
 
 
+def archive_data():
+    get_datastore().archive_data(ARCHIVE_PATH)
+
+
+@repeat_every(seconds=60 * 60 * 6, wait_first=True)
+def archive_task():
+    archive_data()
+
+
 @asynccontextmanager
-async def lifespan(app: FastAPI, datastore: DataStoreDep):
+async def lifespan(app: FastAPI):
+    await archive_task()
     yield
-    datastore.archive_data(ARCHIVE_PATH)
+    archive_data()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -70,27 +83,33 @@ async def tail(datastore: DataStoreDep):
 
 
 @app.post("/archive/parquet/")
-def send_data_since(
+def send_data_since_parquet(
     timestamp: Annotated[datetime, Body()], datastore: DataStoreDep
 ) -> Response:
-    parquet_bytes = datastore.serialize_archive_since_timestamp(timestamp)
+    coerced_timestamp = pd.Timestamp(timestamp)
+    parquet_bytes = datastore.serialize_archive(
+        timestamp=coerced_timestamp, format=Format.Parquet
+    )
     return Response(parquet_bytes)
 
 
 @app.get("/archive/parquet/")
-def send_archive(datastore: DataStoreDep) -> Response:
+def send_archive_parquet(datastore: DataStoreDep) -> Response:
     parquet_bytes = datastore.serialize_archive()
     return Response(parquet_bytes)
 
 
 @app.post("/archive/json/")
-def send_data_since(timestamp: Annotated[datetime, Body()], datastore: DataStoreDep):
-    json = datastore.serialize_archive_since_timestamp(timestamp, Format.JSON)
+def send_data_since_json(
+    timestamp: Annotated[datetime, Body()], datastore: DataStoreDep
+):
+    coerced_timestamp = pd.Timestamp(timestamp)
+    json = datastore.serialize_archive(timestamp=coerced_timestamp, format=Format.JSON)
     return json
 
 
 @app.get("/archive/json/")
-def send_archive(datastore: DataStoreDep):
+def send_archive_json(datastore: DataStoreDep):
     json = datastore.serialize_archive(format=Format.JSON)
     return json
 
@@ -121,7 +140,7 @@ def hello() -> PlainTextResponse:
 
 
 @app.websocket("/")
-async def handle_subscriber(websocket: WebSocket):
+async def handle_subscriber(websocket: WebSocket, publisher: PublisherDep):
     await publisher.connect(websocket)
     try:
         while True:
