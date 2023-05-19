@@ -28,7 +28,7 @@ def download_archive(
 
     log_response(response)
 
-    return extract_payload(response, format)
+    return extract_payload(response, format), format
 
 
 def send_request(
