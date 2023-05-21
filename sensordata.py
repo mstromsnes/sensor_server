@@ -85,9 +85,7 @@ class JSONFormatSensorData(JSONFormat):
         return "json/"
 
 
-class SensorData(pa.DataFrameModel):
-    Parquet: ParquetFormat = ParquetFormatSensorData
-    JSON: JSONFormat = JSONFormatSensorData
+class SensorDataModel(pa.DataFrameModel):
     sensor_type: Index[pd.CategoricalDtype] = pa.Field(
         dtype_kwargs=make_dtype_kwargs(SensorType), isin=SensorType.values()
     )
@@ -100,6 +98,13 @@ class SensorData(pa.DataFrameModel):
     unit: Series[pd.CategoricalDtype] = pa.Field(
         dtype_kwargs=make_dtype_kwargs(Unit), isin=Unit.values()
     )
+
+
+class SensorData:
+    Model = SensorDataModel
+
+    Parquet = ParquetFormatSensorData
+    JSON = JSONFormatSensorData
 
     @classmethod
     def repair_dataframe(cls, df) -> pd.DataFrame:
@@ -134,7 +139,7 @@ class SensorData(pa.DataFrameModel):
 
     @classmethod
     def construct_empty_dataframe(cls) -> pd.DataFrame:
-        dict_base = {key: [] for key in cls._collect_fields().keys()}
+        dict_base = {key: [] for key in cls.Model._collect_fields().keys()}
         df = pd.DataFrame(dict_base)
         df = cls._convert_columns(df)
         df = df.set_index(SensorReading._indexes, drop=True)
