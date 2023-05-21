@@ -22,6 +22,10 @@ class MemberStrEnum(Enum):
         return [member.value for member in cls]
 
 
+def make_dtype_kwargs(enum: MemberStrEnum):
+    return {"categories": enum.values(), "ordered": False}
+
+
 class Sensor(MemberStrEnum):
     DHT11 = "DHT11"
     PITEMP = "PI_CPU"
@@ -77,10 +81,6 @@ class SensorReading(BaseModel):
 
     def columns(self):
         return {key: value for key, value in self if key not in self._indexes}
-
-
-def make_dtype_kwargs(enum):
-    return {"categories": enum.values(), "ordered": False}
 
 
 class SensorData(pa.DataFrameModel):
