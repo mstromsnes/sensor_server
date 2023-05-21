@@ -1,6 +1,8 @@
 import datetime
 from pathlib import Path
 
+from datastore import DataStore
+from sensordata import SensorData
 import pandas as pd
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
@@ -22,8 +24,9 @@ from tests.strats import sensor_reading, MIN_TIMESTAMP, MAX_TIMESTAMP
 def test_timestamp(timestamp, read_only_datastore):
     timedelta = pd.Timedelta(seconds=60)
     archive = read_only_datastore.serialize_archive(
-        timestamp=timestamp + timedelta, format=Format.Parquet
+        timestamp=timestamp + timedelta, format=SensorData.Parquet
     )
+    assert isinstance(archive, bytes)
     assert len(archive) > 0
 
 

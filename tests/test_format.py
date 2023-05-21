@@ -1,32 +1,27 @@
-from format import Format, FormatAnnotation
 from hypothesis import given
 from tests.strats import sensor_data
+from sensordata import SensorData
+from format import SerializedDataFrame
 
 
 @given(dataframe=sensor_data())
 def test_parquet_serialization(dataframe):
-    parquet_bytes = Format.Parquet.serialize(dataframe)
+    parquet_bytes = SensorData.Parquet.serialize(dataframe)
     assert len(parquet_bytes) > 0
 
 
-# def test_parquet_deserialization(serialized_parquet_frame: pd.DataFrame):
-#     frame = Format.Parquet.load(serialized_parquet_frame)
+# def test_parquet_deserialization(serialized_parquet_frame: SerializedDataFrame):
+#     frame = SensorData.Parquet.load(serialized_parquet_frame)
 #     assert frame.size > 0
 
 
 @given(dataframe=sensor_data())
 def test_json_serialization(dataframe):
-    json_str = Format.JSON.serialize(dataframe)
+    json_str = SensorData.JSON.serialize(dataframe)
     assert len(json_str) > 0
 
 
-# def test_json_deserialization(serialized_json_frame: pd.DataFrame):
-#     frame = Format.JSON.load(serialized_json_frame)
+# def test_json_deserialization(serialized_json_frame: SerializedDataFrame):
+#     assert isinstance(serialized_json_frame, str)
+#     frame = SensorData.JSON.load(serialized_json_frame)
 #     assert frame.size > 0
-
-
-def test_all_formats_are_fully_annotated():
-    # Test that no exception is raised for any defined format
-    for key in FormatAnnotation.__required_keys__:
-        for format in Format:
-            format._get_metadata(key)

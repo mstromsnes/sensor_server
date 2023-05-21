@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pandas as pd
 import pytest
@@ -6,7 +6,6 @@ from fastapi.testclient import TestClient
 from httpx import Response
 
 from datastore import SensorData
-from format import Format
 from remotereader import get_bytes_content
 from server import app, get_datastore, get_forwarder, get_publisher
 
@@ -23,8 +22,8 @@ def read_only_client(read_only_datastore, publisher, forwarder) -> TestClient:
 def parquet_response_to_df(
     response: Response,
 ) -> pd.DataFrame:
-    df = Format.Parquet.load(get_bytes_content(response))
-    SensorData.validate(df)
+    df = SensorData.Parquet.load(get_bytes_content(response))
+    SensorData.Model.validate(df)
     return df
 
 
@@ -45,7 +44,7 @@ def test_end_of_data_collection_returns_empty_dataframe(read_only_client: TestCl
     response = read_only_client.post("/archive/json/", json=str(timestamp))
     assert response.status_code == 200
     df = pd.read_json(response.json(), orient="table")
-    SensorData.validate(df)
+    SensorData.Model.validate(df)
     assert df.size == 0
 
 
