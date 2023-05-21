@@ -131,7 +131,7 @@ class DataStore:
         if new_dataframe.empty:
             return old_dataframe
         try:
-            SensorData.validate(new_dataframe)
+            SensorData.Model.validate(new_dataframe)
         except SchemaError:
             new_dataframe = SensorData.construct_empty_dataframe()
             log.error("Invalid Dataframe constructed from queue", exc_info=True)
