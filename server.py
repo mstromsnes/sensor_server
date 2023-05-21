@@ -20,7 +20,11 @@ from fastapi_utils.tasks import repeat_every
 
 import remotereader
 from datastore import DataStore
-from format import Format
+from sensordata import SensorData
+from datetime import datetime
+from typing import Annotated, Union
+from pathlib import Path
+import pandas as pd
 from forwarding import ForwardingManager
 from publisher import Publisher
 from sensor import SensorReading
@@ -101,7 +105,7 @@ def send_data_since_parquet(
 ) -> Response:
     coerced_timestamp = pd.Timestamp(timestamp)
     parquet_bytes = datastore.serialize_archive(
-        timestamp=coerced_timestamp, format=Format.Parquet
+        timestamp=coerced_timestamp, format=SensorData.Parquet
     )
     return Response(parquet_bytes)
 
@@ -117,13 +121,15 @@ def send_data_since_json(
     timestamp: Annotated[datetime, Body()], datastore: DataStoreDep
 ):
     coerced_timestamp = pd.Timestamp(timestamp)
-    json = datastore.serialize_archive(timestamp=coerced_timestamp, format=Format.JSON)
+    json = datastore.serialize_archive(
+        timestamp=coerced_timestamp, format=SensorData.JSON
+    )
     return json
 
 
 @app.get("/archive/json/")
 def send_archive_json(datastore: DataStoreDep):
-    json = datastore.serialize_archive(format=Format.JSON)
+    json = datastore.serialize_archive(format=SensorData.JSON)
     return json
 
 

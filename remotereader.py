@@ -6,9 +6,7 @@ import httpx
 import pandera as pa
 from fastapi import HTTPException
 
-from format import Format
-
-ARCHIVE_ENDPOINT = "/archive/"
+from format import SerializationFormat, ParquetFormat, JSONFormat, SerializedDataFrame
 
 logger = logging.getLogger("remotereader")
 
@@ -18,10 +16,12 @@ class ArchiveNotAvailableException(Exception):
 
 
 def download_archive(
-    url: str, timestamp: Optional[pa.DateTime] = None, format: Format = Format.Parquet
-):
+    url: str,
+    format: SerializationFormat,
+    timestamp: Optional[pa.DateTime] = None,
+) -> SerializedDataFrame:
     try:
-        response = send_request(url, timestamp, format)
+        response = send_request(url, timestamp)
     except httpx.TransportError:
         raise ArchiveNotAvailableException
 
@@ -30,18 +30,14 @@ def download_archive(
 
     log_response(response)
 
-    return extract_payload(response, format), format
+    return extract_payload(response, format)
 
 
-def send_request(
-    url: str, timestamp: Optional[pa.DateTime], format: Format = Format.Parquet
-):
-    format_endpoint = format.endpoint()
-    request_url = url + ARCHIVE_ENDPOINT + format_endpoint
+def send_request(url: str, timestamp: Optional[pa.DateTime]):
     if timestamp is None:
-        response = httpx.get(request_url, timeout=30)
+        response = httpx.get(url)
     else:
-        response = httpx.post(request_url, json=str(timestamp))
+        response = httpx.post(url, json=str(timestamp))
     return response
 
 
@@ -52,11 +48,15 @@ def get_bytes_content(response: httpx.Response) -> BytesIO:
     return buffer
 
 
-def extract_payload(response: httpx.Response, format):
-    if format is Format.Parquet:
+def extract_payload(
+    response: httpx.Response, format: SerializationFormat
+) -> SerializedDataFrame:
+    if isinstance(format, ParquetFormat):
         return get_bytes_content(response)
-    if format is Format.JSON:
+    elif isinstance(format, JSONFormat):
         return response.json()
+    else:
+        raise TypeError("Unsupported Format")
 
 
 def register_as_forwarding_server(url: str):

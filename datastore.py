@@ -2,14 +2,19 @@ import logging
 from typing import Optional, Sequence
 
 import pandas as pd
+from pathlib import Path
+from typing import Optional
+from format import SerializationFormat, SerializedDataFrame
 import pandera as pa
 from pandera.errors import SchemaError
 
 import remotereader
-from format import Format
 from parquetmanager import ParquetManager
 from sensor import SensorData, SensorReading
 from sensorreadingqueue import SensorReadingQueue
+import logging
+from sensor import SensorReading
+from sensordata import SensorData
 
 log = logging.getLogger("datastore")
 
@@ -49,8 +54,8 @@ class DataStore:
         self,
         *,
         timestamp: Optional[pd.Timestamp] = None,
-        format: Format = Format.Parquet,
-    ) -> bytes:
+        format: SerializationFormat = SensorData.Parquet,
+    ) -> SerializedDataFrame:
         """If no timestamp is provided, returns all data currently in memory, as decided by ParquetManager or Proxy.
         If a timestamp is provided, provides all data from the time given to now, possibly loading more data from storage if necessary.
         """
@@ -98,7 +103,9 @@ class DataStore:
 
     def _load_archive(self) -> pd.DataFrame:
         if self.proxy is not None:
-            return self._download_archive_from_proxy(self.proxy)
+            return self._download_archive_from_proxy(
+                self.proxy, "archive/parquet/", SensorData.Parquet
+            )
         elif self.parquet_manager is not None:
             return self._load_dataframe_from_file()
         else:
@@ -107,8 +114,11 @@ class DataStore:
     def _load_dataframe_from_file(self) -> pd.DataFrame:
         return self.parquet_manager.load_dataframe().sort_index()
 
-    def _download_archive_from_proxy(self, proxy) -> pd.DataFrame:
-        archive, format = remotereader.download_archive(proxy)
+    def _download_archive_from_proxy(
+        self, proxy: str, endpoint: str, format: SerializationFormat
+    ) -> pd.DataFrame:
+        url = proxy + endpoint
+        archive = remotereader.download_archive(url, format)
         return format.load(archive)
 
     @staticmethod
