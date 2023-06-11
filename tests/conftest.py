@@ -1,6 +1,7 @@
 import pandas as pd
 from sensor import SensorReading
-from datastore import SensorData, DataStore
+from datastore import SensorData, DataStore, ParquetManager
+from pathlib import Path
 from format import Format
 from publisher import Publisher
 from forwarding import ForwardingManager
@@ -82,8 +83,13 @@ def archive_file(dataframe: pd.DataFrame, tmp_path):
 
 
 @pytest.fixture
-def datastore(archive_file):
-    return DataStore(parquet_file=archive_file)
+def parquet_manager():
+    return ParquetManager(Path("archive/test/"))
+
+
+@pytest.fixture
+def datastore(parquet_manager: ParquetManager):
+    return DataStore(manager=parquet_manager)
 
 
 @pytest.fixture
