@@ -29,27 +29,129 @@ def end_of_week(year: int, week: int, *args):
     """
     return start_of_week(year, week) + datetime.timedelta(days=7)
 
+
+class ParquetManager:
+    def __init__(self, archive_folder: Path = Path("archive/")):
+        self.archive_folder = archive_folder
+
+    def load_dataframe(self) -> pd.DataFrame:
+        last_week, today = self._get_recent_weeks()
+        last_week_df = self._load_single_week(*last_week)
+        current_week_df = self._load_single_week(*today)
+        return pd.concat([last_week_df, current_week_df])
+
+    def _load_single_week(self, year: int, week: int, *args) -> pd.DataFrame:
+        parquet_file = self._archive_path_for_week(year, week)
+        try:
+            return Format.Parquet.load(parquet_file)
+        except Exception as err:
+            log.log(logging.DEBUG, f"{parquet_file=} failed to load", err)
+            return SensorData.construct_empty_dataframe()
+
+    def save_dataframe(self, dataframe: pd.DataFrame):
+        last_week, today = self._get_recent_weeks()
+        dataframe = dataframe.reset_index().set_index("timestamp").sort_index()
+        last_week_df = dataframe.loc[
+            slice(
+                start_of_week(*last_week),
+                end_of_week(*last_week),
+            )
+        ]
+        current_week_df = dataframe.loc[
+            slice(
+                start_of_week(today.year, today.week),
+                end_of_week(today.year, today.week),
+            )
+        ]
+        Format.Parquet.write(last_week_df, self._archive_path_for_week(*last_week))
+        Format.Parquet.write(current_week_df, self._archive_path_for_week(*today))
+
+    @staticmethod
+    def _get_recent_weeks():
+        last_week = (datetime.date.today() - datetime.timedelta(days=7)).isocalendar()
+        today = datetime.date.today().isocalendar()
+        return last_week, today
+
+    def _archive_path_for_week(self, year: int, week: int, *args) -> Path:
+        return self.archive_folder / f"{year}-W{week:02}.parquet"
+
+    @classmethod
+    def earliest_date(cls) -> datetime.datetime:
+        last_week, _ = cls._get_recent_weeks()
+        return start_of_week(*last_week)
+
+    def get_historic_data(
+        self, start: datetime.datetime, end: Optional[datetime.datetime]
+    ):
+        """The default behaviour is to only load the last two weeks of data. If data earlier than that is requested
+        this function should be called to load it. It takes a beginning and optional end.
+
+        If the start and end point are in the same week, it simply loads that parquet file and returns it.
+        If they are in the same year but not the same week, it loads all the files from start week to end week inclusive, concatenate them
+        and returns.
+
+        If they are in different years it loads the files from the given start date to the final week of the year, concates them and then concates them
+        with a recursive call with the start_date of Jan 4 the next year.
+        """
+        start_iso = start.isocalendar()
+        if end is None:
+            end = datetime.datetime.today()
+        if start > end:
+            return SensorData.construct_empty_dataframe()
+        end_iso = end.isocalendar()
+        if start_iso.year == end_iso.year:
+            if start_iso.week == end_iso.week:
+                return self._load_single_week(*start_iso)
+            else:
+                return pd.concat(
+                    [
+                        self._load_single_week(start_iso.year, week)
+                        for week in range(start_iso.week, end_iso.week + 1)
+                    ]
+                )
+        else:
+            year = start_iso.year
+            final_week = (
+                datetime.datetime(year=year, month=12, day=28).isocalendar().week
+            )  # Dec 28 is ALWAYS in the last ISO week of the year
+            frame = pd.concat(
+                [
+                    self._load_single_week(year, week)
+                    for week in range(start_iso.week, final_week + 1)
+                ]
+            )
+            new_year = datetime.datetime(
+                year=year + 1, month=1, day=4
+            )  # Jan 4 is ALWAYS in the first ISO week of the year
+            return pd.concat([self.get_historic_data(new_year, end), frame])
+
+
 class DataStore:
-    def __init__(self, *, parquet_file=None, proxy=None):
+    def __init__(self, *, manager=ParquetManager(), proxy=None):
         self._dataframe = SensorData.construct_empty_dataframe()
-        self.parquet_file = parquet_file
+        self.parquet_manager = manager
         self.proxy = proxy
+        self._reload_dataframe = False
         self._create_pending_queue()
 
     def _can_load_dataframe(self) -> bool:
-        return self.proxy is not None or self.parquet_file is not None
+        return self.proxy is not None or self.parquet_manager is not None
 
     @property
     @pa.check_types
     def dataframe(self) -> pd.DataFrame:
-        if self._dataframe.size == 0 and self._can_load_dataframe():
+        if self._reload_dataframe or (
+            self._dataframe.size == 0 and self._can_load_dataframe()
+        ):
             self._dataframe = self._load_archive()
+            self._reload_dataframe = False
         self._dataframe = self._merge_queue_with_dataframe(self._dataframe, self._queue)
         self._clear_pending_queue()
         return self._dataframe
 
-    def archive_data(self, parquet_file: Path):
-        Format.Parquet.write(self.dataframe, parquet_file)
+    def archive_data(self):
+        self.parquet_manager.save_dataframe(self.dataframe)
+        self._reload_dataframe = True
 
     def serialize_archive(
         self,
@@ -57,13 +159,22 @@ class DataStore:
         timestamp: Optional[pd.Timestamp] = None,
         format: Format = Format.Parquet,
     ) -> bytes:
-        # Slices to all entries of the highest level index, SensorType, all entries of the next level index, Sensor and then to all values at timestamp and later
-        # If timestamp is None, this just slices to the whole dataframe, so the behaviour doesn't branch whether we provide a timestamp or not
-        if timestamp is not None:
-            idx = (slice(None), slice(None), slice(timestamp, None))
-            df = self.dataframe.loc[idx, :]
+        """If no timestamp is provided, returns all data currently in memory, as decided by ParquetManager or Proxy.
+        If a timestamp is provided, provides all data from the time given to now, possibly loading more data from storage if necessary.
+        """
+        if timestamp is None:
+            return format.serialize(self.dataframe)
+        # Slices to all entries of the highest level index; SensorType, all entries of the next level index; Sensor, and then to all values at timestamp and later
+        idx = (slice(None), slice(None), slice(timestamp, None))
+        if (
+            self.parquet_manager is not None
+            and timestamp < ParquetManager.earliest_date()
+        ):
+            df = self.parquet_manager.get_historic_data(timestamp, None)
+            df = SensorData.repair_dataframe(df).sort_index()
         else:
             df = self.dataframe
+        df = df.loc[idx, :]
         return format.serialize(df)
 
     def add_reading(self, reading: SensorReading):
@@ -83,17 +194,13 @@ class DataStore:
     def _load_archive(self) -> pd.DataFrame:
         if self.proxy is not None:
             return self._download_archive_from_proxy(self.proxy)
-        elif self.parquet_file is not None:
-            return self._load_dataframe_from_file(self.parquet_file)
+        elif self.parquet_manager is not None:
+            return self._load_dataframe_from_file()
         else:
             return SensorData.construct_empty_dataframe()
 
-    def _load_dataframe_from_file(self, parquet_file: Path) -> pd.DataFrame:
-        try:
-            return Format.Parquet.load(parquet_file).sort_index()
-        except Exception as err:
-            log.log(logging.DEBUG, f"{parquet_file=} failed to load", err)
-            return SensorData.construct_empty_dataframe()
+    def _load_dataframe_from_file(self) -> pd.DataFrame:
+        return self.parquet_manager.load_dataframe().sort_index()
 
     def _download_archive_from_proxy(self, proxy) -> pd.DataFrame:
         archive, format = remotereader.download_archive(proxy)

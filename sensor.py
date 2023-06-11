@@ -89,9 +89,10 @@ class SensorData(pa.DataFrameModel):
     )
 
     @classmethod
-    def repair_dataframe(cls, df) -> pd.DataFrame:
+    def repair_dataframe(cls, df: pd.DataFrame) -> pd.DataFrame:
         """The dataframe multiindex doesn't save correctly in parquet. The categorical types are dropped. To fix this, the index is first reset before saving, making them regular columns.
         The columns do preserve the categorical types."""
+        df = df.reset_index()
         df = cls._convert_columns(df)
         df = df.set_index(SensorReading._indexes, drop=True)
         return df
