@@ -17,13 +17,11 @@ from datastore import DataStore
 from format import Format
 from datetime import datetime
 from typing import Annotated, Union
-from pathlib import Path
 import pandas as pd
 from forwarding import ForwardingManager
 from contextlib import asynccontextmanager
 
-ARCHIVE_PATH = Path("archive/data.parquet")
-DATASTORE = DataStore(parquet_file=ARCHIVE_PATH)
+DATASTORE = DataStore()
 PUBLISHER = Publisher()
 FORWARDER = ForwardingManager()
 
@@ -46,7 +44,7 @@ ForwarderDep = Annotated[ForwardingManager, Depends(get_forwarder)]
 
 
 def archive_data():
-    get_datastore().archive_data(ARCHIVE_PATH)
+    get_datastore().archive_data()
 
 
 @repeat_every(seconds=60 * 60 * 6, wait_first=True)
