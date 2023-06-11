@@ -7,9 +7,27 @@ from pandera.errors import SchemaError
 import remotereader
 import logging
 from sensor import SensorReading, SensorData
+import datetime
 
 log = logging.getLogger("datastore")
 
+
+def start_of_week(year: int, week: int, *args):
+    """Gets the date that starts given the iso week given"""
+    jan_fourth = datetime.datetime(
+        year, 1, 4
+    )  # Jan 4th is always in the first ISO week of the year
+    start_of_week_one = jan_fourth - datetime.timedelta(days=jan_fourth.weekday())
+    start_of_week = start_of_week_one + datetime.timedelta(days=(week - 1) * 7)
+    return start_of_week
+
+
+def end_of_week(year: int, week: int, *args):
+    """Gets the date starting the next week after the one given.
+
+    This isn't simply start_of_week(..., week+1) as the next week can be the first in the next year.
+    """
+    return start_of_week(year, week) + datetime.timedelta(days=7)
 
 class DataStore:
     def __init__(self, *, parquet_file=None, proxy=None):
