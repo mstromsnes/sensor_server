@@ -1,8 +1,9 @@
 from format import Format
 from datastore import DataStore
-from sensor import SensorReading
+from sensor import SensorReading, SensorData
 import datetime
 import pandas as pd
+from .conftest import reading_generator
 
 
 def test_timestamp(datastore: DataStore, archive_timestamp):
@@ -14,12 +15,11 @@ def test_timestamp(datastore: DataStore, archive_timestamp):
 
 
 def test_adding_data(datastore: DataStore):
-    for i in range(10000):
-        reading = SensorReading(
-            sensor_type="temperature",
-            sensor="DHT11",
-            timestamp=str(datetime.datetime.now()),
-            reading=20.0,
-            unit="C",
-        )
+    readings = reading_generator()
+    readings_to_add = [next(readings) for _ in range(200)]
+    for reading in readings_to_add:
         datastore.add_reading(reading)
+    timestamp = pd.Timestamp(readings_to_add[0].timestamp)
+    expected = SensorData.make_dataframe_from_list_of_readings(readings_to_add)
+    actual = datastore.get_archive_since(timestamp)
+    assert expected.equals(actual)

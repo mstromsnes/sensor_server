@@ -1,18 +1,35 @@
 import pandas as pd
 from sensor import SensorReading
-from datastore import SensorData, DataStore, ParquetManager
+from datastore import SensorData, DataStore, ParquetManager, SensorReadingQueue
 from pathlib import Path
 from format import Format
 from publisher import Publisher
 from forwarding import ForwardingManager
 from server import app, get_datastore, get_forwarder, get_publisher
 from fastapi.testclient import TestClient
+import datetime
 import pytest
 
 TIME_ISO_FORMAT = "2023-05-17"
 
 timestamp = pd.Timestamp.fromisoformat(TIME_ISO_FORMAT)
 delta = pd.Timedelta(seconds=1)
+
+
+def reading_generator():
+    i = 0
+    timestamp = datetime.datetime.now()
+    recipe = {
+        "sensor_type": "temperature",
+        "sensor": "DHT11",
+        "timestamp": str(timestamp),
+        "reading": 20.0,
+        "unit": "C",
+    }
+    while True:
+        i += 1
+        recipe["timestamp"] = str(timestamp + datetime.timedelta(seconds=i))
+        yield SensorReading(**recipe)
 
 
 @pytest.fixture
@@ -83,13 +100,25 @@ def archive_file(dataframe: pd.DataFrame, tmp_path):
 
 
 @pytest.fixture
+def queue():
+    return SensorReadingQueue(maxlen=10)
+
+
+@pytest.fixture
+def filled_queue(queue: SensorReadingQueue):
+    readings = reading_generator()
+    for _ in range(10):
+        queue.add_reading(next(readings), lambda: ...)
+
+
+@pytest.fixture
 def parquet_manager():
     return ParquetManager(Path("archive/test/"))
 
 
 @pytest.fixture
-def datastore(parquet_manager: ParquetManager):
-    return DataStore(manager=parquet_manager)
+def datastore(parquet_manager: ParquetManager, queue: SensorReadingQueue):
+    return DataStore(manager=parquet_manager, queue=queue)
 
 
 @pytest.fixture
