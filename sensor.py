@@ -1,5 +1,6 @@
 from enum import Enum
 from pydantic import BaseModel, validator
+from typing import Sequence
 import pandera as pa
 from pandera.typing import Index, Series
 import pandas as pd
@@ -93,6 +94,10 @@ class SensorData(pa.DataFrameModel):
         """The dataframe multiindex doesn't save correctly in parquet. The categorical types are dropped. To fix this, the index is first reset before saving, making them regular columns.
         The columns do preserve the categorical types."""
         df = df.reset_index()
+        try:
+            df = df.drop("index", axis=1)
+        except KeyError:
+            pass
         df = cls._convert_columns(df)
         df = df.set_index(SensorReading._indexes, drop=True)
         return df
@@ -110,7 +115,7 @@ class SensorData(pa.DataFrameModel):
     @classmethod
     def make_dataframe_from_list_of_readings(
         cls,
-        readings: list[SensorReading],
+        readings: Sequence[SensorReading],
     ) -> pd.DataFrame:
         if readings:
             df = pd.DataFrame(map(lambda r: r.dict(), readings))
