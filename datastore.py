@@ -28,7 +28,7 @@ class SensorReadingQueue:
         self._maxlen = maxlen
         self._queue: deque[SensorReading] = deque(maxlen=maxlen)
         self._counter = 0
-    
+
     def register_on_full_callback(self, callback: Callable):
         self._on_full_callback = callback
 
@@ -66,6 +66,14 @@ class SensorReadingQueue:
                     self._queue, self._maxlen - self._counter, self._maxlen
                 )
             )
+
+    def reset_counter(self):
+        if len(self._queue) < self._maxlen:
+            self._counter = 0
+        else:
+            self._counter = len(self._queue)
+
+
 def start_of_week(year: int, week: int, *args):
     """Gets the date that starts given the iso week given"""
     jan_fourth = datetime.datetime(
@@ -248,13 +256,9 @@ class DataStore:
     def tail(self) -> pd.DataFrame:
         return self.dataframe.tail()
 
-    def _create_pending_queue(self):
-        """Create the queue of readings that will be added to the dataframe in the next update"""
-        self._queue: list[SensorReading] = list()
-
     def _clear_pending_queue(self):
         """Clear the queue of readings that will be added to the dataframe in the next update"""
-        self._create_pending_queue()
+        self._queue.reset_counter()
 
     def _load_archive(self) -> pd.DataFrame:
         if self.proxy is not None:
