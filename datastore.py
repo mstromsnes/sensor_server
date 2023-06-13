@@ -1,6 +1,6 @@
 import pandas as pd
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence, Callable
 from format import Format
 import pandera as pa
 from pandera.errors import SchemaError
@@ -8,10 +8,64 @@ import remotereader
 import logging
 from sensor import SensorReading, SensorData
 import datetime
+from collections import deque
+import itertools
 
 log = logging.getLogger("datastore")
 
 
+class SensorReadingQueue:
+    """A queue that handles the incoming data before it's appended to the dataframe.
+
+    Appending to the dataframe is expensive, and we want to avoid doing it. A common usecase is to request the most recent data, which should be in the queue.
+    This implements this queue as a deque, which will fill up to maxlen size, then call the callback that should merge the queue into the dataframe.
+
+    The queue stays at maxlen size, adding new data to the front of the queue and popping old data off the back. Every maxlen readings added it calls the callback to
+    merge the queue with the dataframe. As it is never destroyed and reconstructed, the latest data will always be available, and can be requested from here
+    rather than concatenating and indexing into the large dataframe."""
+
+    def __init__(self, maxlen):
+        self._maxlen = maxlen
+        self._queue: deque[SensorReading] = deque(maxlen=maxlen)
+        self._counter = 0
+    
+    def register_on_full_callback(self, callback: Callable):
+        self._on_full_callback = callback
+
+    def add_reading(self, reading: SensorReading):
+        self._queue.append(reading)
+        self._counter += 1
+        if self._counter == self._maxlen:
+            self._on_full_callback(self.get_unsynced_queue())
+            self._counter = 0
+
+    def contains(self, timestamp: pd.Timestamp):
+        return self._queue and timestamp > pd.Timestamp(self._queue[0].timestamp)
+
+    def get_since_timestamp(self, timestamp: pd.Timestamp) -> pd.DataFrame:
+        if not self.contains(timestamp):
+            raise KeyError
+        it = reversed(self._queue)
+        for i, reading in enumerate(it):
+            if timestamp < pd.Timestamp(reading.timestamp):
+                continue
+            list_of_readings = list(
+                itertools.islice(
+                    self._queue, -i + 1 + len(self._queue), len(self._queue)
+                )
+            )
+            return SensorData.make_dataframe_from_list_of_readings(list_of_readings)
+        raise KeyError
+
+    def get_unsynced_queue(self):
+        if len(self._queue) < self._maxlen:
+            return list(itertools.islice(self._queue, 0, self._counter))
+        else:
+            return list(
+                itertools.islice(
+                    self._queue, self._maxlen - self._counter, self._maxlen
+                )
+            )
 def start_of_week(year: int, week: int, *args):
     """Gets the date that starts given the iso week given"""
     jan_fourth = datetime.datetime(
@@ -127,25 +181,29 @@ class ParquetManager:
 
 
 class DataStore:
-    def __init__(self, *, manager=ParquetManager(), proxy=None):
-        self._dataframe = SensorData.construct_empty_dataframe()
+    def __init__(
+        self,
+        *,
+        manager=ParquetManager(),
+        proxy=None,
+        queue=SensorReadingQueue(maxlen=10000),
+    ):
         self.parquet_manager = manager
         self.proxy = proxy
+        self._dataframe = self._load_archive()
         self._reload_dataframe = False
-        self._create_pending_queue()
-
-    def _can_load_dataframe(self) -> bool:
-        return self.proxy is not None or self.parquet_manager is not None
+        self._queue = queue
+        self._queue.register_on_full_callback(self._update_from_queue)
 
     @property
     @pa.check_types
     def dataframe(self) -> pd.DataFrame:
-        if self._reload_dataframe or (
-            self._dataframe.size == 0 and self._can_load_dataframe()
-        ):
+        if self._reload_dataframe or self._dataframe.size == 0:
             self._dataframe = self._load_archive()
             self._reload_dataframe = False
-        self._dataframe = self._merge_queue_with_dataframe(self._dataframe, self._queue)
+        self._dataframe = self._merge_queue_with_dataframe(
+            self._dataframe, self._queue.get_unsynced_queue()
+        )
         self._clear_pending_queue()
         return self._dataframe
 
@@ -164,18 +222,25 @@ class DataStore:
         """
         if timestamp is None:
             return format.serialize(self.dataframe)
+        df = self.get_archive_since(timestamp)
+        return format.serialize(df)
+
+    def get_archive_since(self, timestamp: Optional[pd.Timestamp]):
         # Slices to all entries of the highest level index; SensorType, all entries of the next level index; Sensor, and then to all values at timestamp and later
         idx = (slice(None), slice(None), slice(timestamp, None))
-        if (
-            self.parquet_manager is not None
-            and timestamp < ParquetManager.earliest_date()
-        ):
-            df = self.parquet_manager.get_historic_data(timestamp, None)
-            df = SensorData.repair_dataframe(df).sort_index()
-        else:
-            df = self.dataframe
-        df = df.loc[idx, :]
-        return format.serialize(df)
+        try:
+            df = self._queue.get_since_timestamp(timestamp)
+        except KeyError:
+            if (
+                self.parquet_manager is not None
+                and timestamp < ParquetManager.earliest_date()
+            ):
+                df = self.parquet_manager.get_historic_data(timestamp, None)
+                df = SensorData.repair_dataframe(df).sort_index()
+            else:
+                df = self.dataframe
+            df = df.loc[idx, :]
+        return df
 
     def add_reading(self, reading: SensorReading):
         self._write_reading_to_queue(reading)
@@ -223,8 +288,8 @@ class DataStore:
             log.error(f"{queue=}")
         return pd.concat([old_dataframe, new_dataframe]).sort_index()
 
+    def _update_from_queue(self, queue: Sequence[SensorReading]):
+        self._dataframe = self._merge_queue_with_dataframe(self._dataframe, queue)
+
     def _write_reading_to_queue(self, reading: SensorReading):
-        self._queue.append(reading)
-        if len(self._queue) > 1000:
-            # Force a write
-            self.dataframe
+        self._queue.add_reading(reading)
