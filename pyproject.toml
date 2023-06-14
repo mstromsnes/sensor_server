@@ -21,6 +21,7 @@ mypy = "^1.2.0"
 pytest = "^7.3.1"
 httpx = "^0.24.0"
 ipykernel = "^6.23.1"
+hypothesis = "^6.78.1"
 
 [build-system]
 requires = ["poetry-core"]
