@@ -1,9 +1,11 @@
-from sensor import SensorData
-from pandera.errors import SchemaError
-from sensor import SensorReading
-import pytest
 import pandas as pd
+import pytest
+from hypothesis import given
+from pandera.errors import SchemaError
+
 from format import Format
+from sensor import SensorData, SensorReading
+from tests.strats import sensor_data
 
 TEST_ARCHIVE_FILE = "archive/test.parquet"
 
@@ -17,24 +19,28 @@ def replace_index(
     return df
 
 
+@given(dataframe=sensor_data())
 def test_wrong_category_sensortype(dataframe):
     dataframe = replace_index(dataframe, SensorReading._indexes, "temperature", "t")
     with pytest.raises(SchemaError):
         SensorData.validate(dataframe)
 
 
+@given(dataframe=sensor_data())
 def test_wrong_category_sensor(dataframe):
     dataframe = replace_index(dataframe, SensorReading._indexes, "DHT11", "dht11")
     with pytest.raises(SchemaError):
         SensorData.validate(dataframe)
 
 
+@given(dataframe=sensor_data())
 def test_wrong_category_unit(dataframe: pd.DataFrame):
     dataframe = dataframe.replace("C", "K")
     with pytest.raises(SchemaError):
         SensorData.validate(dataframe)
 
 
+@given(dataframe=sensor_data())
 def test_serialize_and_deserialize_maintains_dtypes(dataframe):
     ser = Format.Parquet.serialize(dataframe)
     df = Format.Parquet.load(ser)
@@ -46,6 +52,7 @@ def test_make_empty_dataframe():
     assert empty_df.size == 0
 
 
+@given(dataframe=sensor_data())
 @pytest.mark.parametrize("column", SensorReading._columns)
 def test_missing_column(dataframe: pd.DataFrame, column):
     dataframe = dataframe.drop(columns=column)

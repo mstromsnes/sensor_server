@@ -55,3 +55,15 @@ def sensor_data(draw: st.DrawFn):
     ).sort_index()
 
 
+@st.composite
+def sensor_data_with_recent_data(draw: st.DrawFn):
+    def has_recent_data(df: pd.DataFrame):
+        start_of_week = df.reset_index()["timestamp"].apply(start_of_week_timestamp)
+        current_time = pd.Timestamp.now()
+        return (start_of_week == start_of_week_timestamp(current_time)).any() or (
+            start_of_week
+            == start_of_week_timestamp(current_time - pd.Timedelta(days=7))
+        ).any()
+
+    frame = draw(sensor_data().filter(has_recent_data))
+    return frame
