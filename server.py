@@ -1,27 +1,38 @@
 import logging
+from contextlib import asynccontextmanager
+from datetime import datetime
+from pathlib import Path
+from typing import Annotated, Union
+
+import pandas as pd
 import uvicorn
 from fastapi import (
-    FastAPI,
-    Body,
-    Request,
     BackgroundTasks,
+    Body,
+    Depends,
+    FastAPI,
+    Request,
     WebSocket,
     WebSocketDisconnect,
-    Depends,
 )
-from fastapi.responses import Response, PlainTextResponse
+from fastapi.responses import PlainTextResponse, Response
 from fastapi_utils.tasks import repeat_every
-from publisher import Publisher
-from sensor import SensorReading
+
+import remotereader
 from datastore import DataStore
 from format import Format
-from datetime import datetime
-from typing import Annotated, Union
-import pandas as pd
 from forwarding import ForwardingManager
-from contextlib import asynccontextmanager
+from publisher import Publisher
+from sensor import SensorReading
 
-DATASTORE = DataStore()
+
+def dev_mode():
+    return Path("dev").exists()
+
+
+PROXY = "http://192.168.4.141:8000" if dev_mode() else None
+
+DATASTORE = DataStore(proxy=PROXY)
 PUBLISHER = Publisher()
 FORWARDER = ForwardingManager()
 
@@ -54,8 +65,12 @@ def archive_task():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if dev_mode():
+        remotereader.register_as_forwarding_server(PROXY)
     await archive_task()
     yield
+    if dev_mode():
+        remotereader.remove_as_forwarding_server(PROXY)
     archive_data()
 
 

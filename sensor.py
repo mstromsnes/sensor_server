@@ -1,9 +1,17 @@
 from enum import Enum
-from pydantic import BaseModel, validator
 from typing import Sequence
+
+import pandas as pd
 import pandera as pa
 from pandera.typing import Index, Series
-import pandas as pd
+from pydantic import BaseModel, validator
+
+SENSOR_COMBINATIONS = [
+    ("temperature", "DHT11"),
+    ("temperature", "DS18B20"),
+    ("temperature", "PI_CPU"),
+    ("humidity", "DHT11"),
+]
 
 
 class MemberStrEnum(Enum):
@@ -98,13 +106,14 @@ class SensorData(pa.DataFrameModel):
             df = df.drop("index", axis=1)
         except KeyError:
             pass
+        df = df.drop_duplicates(["sensor_type", "sensor", "timestamp"])
         df = cls._convert_columns(df)
         df = df.set_index(SensorReading._indexes, drop=True)
         return df
 
     @staticmethod
     def _convert_columns(df: pd.DataFrame) -> pd.DataFrame:
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"], format="%Y-%m-%d %H:%M:%S.%f")
         df["sensor_type"] = pd.Categorical(
             df["sensor_type"], **make_dtype_kwargs(SensorType)
         )

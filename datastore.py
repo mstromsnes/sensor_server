@@ -59,22 +59,32 @@ class DataStore:
         df = self.get_archive_since(timestamp)
         return format.serialize(df)
 
-    def get_archive_since(self, timestamp: Optional[pd.Timestamp]):
+    def get_archive_since(self, timestamp: Optional[pd.Timestamp]) -> pd.DataFrame:
         # Slices to all entries of the highest level index; SensorType, all entries of the next level index; Sensor, and then to all values at timestamp and later
-        idx = (slice(None), slice(None), slice(timestamp, None))
-        try:
-            df = self._queue.get_since_timestamp(timestamp)
-        except KeyError:
-            if (
-                self.parquet_manager is not None
-                and timestamp < ParquetManager.earliest_date()
-            ):
-                df = self.parquet_manager.get_historic_data(timestamp, None)
-                df = SensorData.repair_dataframe(df).sort_index()
-            else:
-                df = self.dataframe
-            df = df.loc[idx, :]
+        quick_df = self._get_fast_data(timestamp)
+        in_memory_df = self._get_in_memory_data(timestamp)
+        slow_df = self._get_archived_data(timestamp)
+        df = self._merge_archives([quick_df, in_memory_df, slow_df])
         return df
+
+    def _get_fast_data(self, timestamp: Optional[pd.Timestamp]) -> pd.DataFrame:
+        return self._queue.get_since_timestamp(timestamp)
+
+    def _get_in_memory_data(self, timestamp: Optional[pd.Timestamp]) -> pd.DataFrame:
+        idx = (slice(None), slice(None), slice(timestamp, None))
+        return self._dataframe.loc[idx, :]
+
+    def _get_archived_data(self, timestamp: Optional[pd.Timestamp]) -> pd.DataFrame:
+        if (
+            self.parquet_manager is not None
+            and timestamp < ParquetManager.earliest_date()
+        ):
+            return self.parquet_manager.get_historic_data(timestamp, None)
+        return SensorData.construct_empty_dataframe()
+
+    def _merge_archives(self, dataframes: list[pd.DataFrame]) -> pd.DataFrame:
+        frame_map = map(lambda df: df.reset_index(), dataframes)
+        return SensorData.repair_dataframe(pd.concat(frame_map))
 
     def add_reading(self, reading: SensorReading):
         self._write_reading_to_queue(reading)
@@ -108,7 +118,7 @@ class DataStore:
     @classmethod
     def _merge_queue_with_dataframe(cls, old_dataframe, queue) -> pd.DataFrame:
         new_dataframe = cls._load_dataframe_from_queue(queue)
-        if new_dataframe.size == 0:
+        if new_dataframe.empty:
             return old_dataframe
         try:
             SensorData.validate(new_dataframe)

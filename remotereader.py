@@ -1,10 +1,12 @@
-import httpx
-from fastapi import HTTPException
-from io import BytesIO
-import pandera as pa
-from format import Format
-from typing import Optional
 import logging
+from io import BytesIO
+from typing import Optional
+
+import httpx
+import pandera as pa
+from fastapi import HTTPException
+
+from format import Format
 
 ARCHIVE_ENDPOINT = "/archive/"
 
@@ -34,10 +36,10 @@ def download_archive(
 def send_request(
     url: str, timestamp: Optional[pa.DateTime], format: Format = Format.Parquet
 ):
-    format_endpoint = format.value
+    format_endpoint = format.endpoint()
     request_url = url + ARCHIVE_ENDPOINT + format_endpoint
     if timestamp is None:
-        response = httpx.get(request_url)
+        response = httpx.get(request_url, timeout=30)
     else:
         response = httpx.post(request_url, json=str(timestamp))
     return response
@@ -55,6 +57,16 @@ def extract_payload(response: httpx.Response, format):
         return get_bytes_content(response)
     if format is Format.JSON:
         return response.json()
+
+
+def register_as_forwarding_server(url: str):
+    request_url = url + "/register_forwarding_server/"
+    return httpx.post(request_url, json={"port": "8005"})
+
+
+def remove_as_forwarding_server(url: str):
+    request_url = url + "/register_forwarding_server/"
+    return httpx.delete(request_url)
 
 
 def log_response(response: httpx.Response):
