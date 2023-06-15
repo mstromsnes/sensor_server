@@ -532,7 +532,6 @@ files = [
     {file = "fastparquet-2023.4.0-cp39-cp39-musllinux_1_1_i686.whl", hash = "sha256:c79c10a81fa877499bbff7cd2f4d6f3d3273ddf293c2a235c222503caf6bdb77"},
     {file = "fastparquet-2023.4.0-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:79cae0f83b67a7f1f0f7cee865fdfb80bb44a2e05c112ec5f7170c3d758a30a4"},
     {file = "fastparquet-2023.4.0-cp39-cp39-win_amd64.whl", hash = "sha256:86b6dc5ff409d1fa76aa1da24ebeb93b85dd795e2c5c56d4106957c78b236ee7"},
-    {file = "fastparquet-2023.4.0.tar.gz", hash = "sha256:917e6d288ea07e10b28b5fa4b4c0b70f60b14971ece3ba5bf30690320a53aa70"},
 ]
 
 [package.dependencies]
@@ -547,14 +546,14 @@ lzo = ["python-lzo"]
 
 [[package]]
 name = "fsspec"
-version = "2023.5.0"
+version = "2023.6.0"
 description = "File-system specification"
 category = "main"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "fsspec-2023.5.0-py3-none-any.whl", hash = "sha256:51a4ad01a5bb66fcc58036e288c0d53d3975a0df2a5dc59a93b59bade0391f2a"},
-    {file = "fsspec-2023.5.0.tar.gz", hash = "sha256:b3b56e00fb93ea321bc9e5d9cf6f8522a0198b20eb24e02774d329e9c6fb84ce"},
+    {file = "fsspec-2023.6.0-py3-none-any.whl", hash = "sha256:1cbad1faef3e391fba6dc005ae9b5bdcbf43005c9167ce78c915549c352c869a"},
+    {file = "fsspec-2023.6.0.tar.gz", hash = "sha256:d0b2f935446169753e7a5c5c55681c54ea91996cc67be93c39a154fb3a2742af"},
 ]
 
 [package.extras]
@@ -769,14 +768,14 @@ socks = ["socksio (>=1.0.0,<2.0.0)"]
 
 [[package]]
 name = "hypothesis"
-version = "6.75.3"
+version = "6.78.1"
 description = "A library for property-based testing"
 category = "main"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "hypothesis-6.75.3-py3-none-any.whl", hash = "sha256:a12bf34c29bd22757d20edf93f95805978ed0ffb8d0b22dbadc890a79dc9baa8"},
-    {file = "hypothesis-6.75.3.tar.gz", hash = "sha256:15cdadb80a7ac59087581624d266a4fb585b5cce9b7f88f506c481a9f0e583f6"},
+    {file = "hypothesis-6.78.1-py3-none-any.whl", hash = "sha256:4dd3b9534f09956e2d8ec57af4bd278eb40c6336c5ccb6eb82633ecf4292a5d5"},
+    {file = "hypothesis-6.78.1.tar.gz", hash = "sha256:d39968022d03ea264a301420c3a347c88b6ecd21d674c2ec77b41688bb42cebf"},
 ]
 
 [package.dependencies]
@@ -917,6 +916,24 @@ parallel = ["ipyparallel"]
 qtconsole = ["qtconsole"]
 test = ["pytest (<7.1)", "pytest-asyncio", "testpath"]
 test-extra = ["curio", "matplotlib (!=3.2.0)", "nbformat", "numpy (>=1.21)", "pandas", "pytest (<7.1)", "pytest-asyncio", "testpath", "trio"]
+
+[[package]]
+name = "isort"
+version = "5.12.0"
+description = "A Python utility / library to sort Python imports."
+category = "dev"
+optional = false
+python-versions = ">=3.8.0"
+files = [
+    {file = "isort-5.12.0-py3-none-any.whl", hash = "sha256:f84c2818376e66cf843d497486ea8fed8700b340f308f076c6fb1229dff318b6"},
+    {file = "isort-5.12.0.tar.gz", hash = "sha256:8bef7dde241278824a6d83f44a544709b065191b95b6e50894bdc722fcba0504"},
+]
+
+[package.extras]
+colors = ["colorama (>=0.4.3)"]
+pipfile-deprecated-finder = ["pip-shims (>=0.5.2)", "pipreqs", "requirementslib"]
+plugins = ["setuptools"]
+requirements-deprecated-finder = ["pip-api", "pipreqs"]
 
 [[package]]
 name = "itsdangerous"
@@ -2226,6 +2243,24 @@ files = [
 ]
 
 [[package]]
+name = "universal-pathlib"
+version = "0.0.23"
+description = "Pathlib API extended to use fsspec backends"
+category = "dev"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "universal_pathlib-0.0.23-py3-none-any.whl", hash = "sha256:76cbc91d66ddb2c0c0c939d147bcd8fa2c79882b5451d2a59009811fc4f80bd3"},
+    {file = "universal_pathlib-0.0.23.tar.gz", hash = "sha256:bd7ed0ad5c6a31b3bf0835b9e7526ed0974ec3a49e4a6a02b1f4058ce63ec79c"},
+]
+
+[package.dependencies]
+fsspec = "*"
+
+[package.extras]
+test = ["adlfs", "aiohttp", "flake8", "gcsfs", "hadoop-test-cluster", "ipython", "jupyter", "moto", "pyarrow", "pylint", "pytest", "requests", "s3fs", "webdav4[fsspec]"]
+
+[[package]]
 name = "uvicorn"
 version = "0.22.0"
 description = "The lightning-fast ASGI server."
@@ -2527,4 +2562,4 @@ testing = ["big-O", "flake8 (<5)", "jaraco.functools", "jaraco.itertools", "more
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.12"
-content-hash = "3855f5c84d0d41e3672c75aa9b8f23d57d0a62e58951f935536f18736eb6ee5c"
+content-hash = "4f38edda9f2996f991eb5e5eae44195d80b0c55ef06c194cd0d90661224a8696"
