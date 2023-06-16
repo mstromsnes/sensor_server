@@ -65,7 +65,7 @@ class DataStore:
         quick_df = self._get_fast_data(timestamp)
         in_memory_df = self._get_in_memory_data(timestamp)
         slow_df = self._get_archived_data(timestamp)
-        df = self._merge_archives([quick_df, in_memory_df, slow_df])
+        df = self._merge_archives([slow_df, in_memory_df, quick_df])
         return df
 
     def _get_fast_data(self, timestamp: Optional[pd.Timestamp]) -> pd.DataFrame:
