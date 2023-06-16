@@ -5,8 +5,7 @@ from typing import Optional
 
 import pandas as pd
 
-from remotereader import Format
-from sensor import SensorData
+from sensordata import SensorData
 
 
 def start_of_week_timestamp(timestamp: pd.Timestamp):

@@ -4,7 +4,8 @@ from typing import Callable
 
 import pandas as pd
 
-from sensor import SensorData, SensorReading
+from sensor import SensorReading
+from sensordata import SensorData
 
 
 class SensorReadingQueue:

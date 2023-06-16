@@ -1,9 +1,6 @@
 from enum import Enum
-from typing import Sequence
 
 import pandas as pd
-import pandera as pa
-from pandera.typing import Index, Series
 from pydantic import BaseModel, validator
 
 SENSOR_COMBINATIONS = [
@@ -81,62 +78,3 @@ class SensorReading(BaseModel):
 
     def columns(self):
         return {key: value for key, value in self if key not in self._indexes}
-
-
-class SensorData(pa.DataFrameModel):
-    sensor_type: Index[pd.CategoricalDtype] = pa.Field(
-        dtype_kwargs=make_dtype_kwargs(SensorType), isin=SensorType.values()
-    )
-    sensor: Index[pd.CategoricalDtype] = pa.Field(
-        dtype_kwargs=make_dtype_kwargs(Sensor), isin=Sensor.values()
-    )
-    timestamp: Index[pa.DateTime]
-
-    reading: Series[float]
-    unit: Series[pd.CategoricalDtype] = pa.Field(
-        dtype_kwargs=make_dtype_kwargs(Unit), isin=Unit.values()
-    )
-
-    @classmethod
-    def repair_dataframe(cls, df: pd.DataFrame) -> pd.DataFrame:
-        """The dataframe multiindex doesn't save correctly in parquet. The categorical types are dropped. To fix this, the index is first reset before saving, making them regular columns.
-        The columns do preserve the categorical types."""
-        df = df.reset_index()
-        try:
-            df = df.drop("index", axis=1)
-        except KeyError:
-            pass
-        df = df.drop_duplicates(["sensor_type", "sensor", "timestamp"])
-        df = cls._convert_columns(df)
-        df = df.set_index(SensorReading._indexes, drop=True)
-        return df
-
-    @staticmethod
-    def _convert_columns(df: pd.DataFrame) -> pd.DataFrame:
-        df["timestamp"] = pd.to_datetime(df["timestamp"], format="%Y-%m-%d %H:%M:%S.%f")
-        df["sensor_type"] = pd.Categorical(
-            df["sensor_type"], **make_dtype_kwargs(SensorType)
-        )
-        df["sensor"] = pd.Categorical(df["sensor"], **make_dtype_kwargs(Sensor))
-        df["unit"] = pd.Categorical(df["unit"], **make_dtype_kwargs(Unit))
-        return df
-
-    @classmethod
-    def make_dataframe_from_list_of_readings(
-        cls,
-        readings: Sequence[SensorReading],
-    ) -> pd.DataFrame:
-        if readings:
-            df = pd.DataFrame(map(lambda r: r.dict(), readings))
-            df = cls.repair_dataframe(df)
-        else:
-            df = SensorData.construct_empty_dataframe()
-        return df
-
-    @classmethod
-    def construct_empty_dataframe(cls) -> pd.DataFrame:
-        dict_base = {key: [] for key in cls._collect_fields().keys()}
-        df = pd.DataFrame(dict_base)
-        df = cls._convert_columns(df)
-        df = df.set_index(SensorReading._indexes, drop=True)
-        return df
