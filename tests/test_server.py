@@ -5,8 +5,8 @@ import pytest
 from fastapi.testclient import TestClient
 from httpx import Response
 
-from datastore import SensorData
 from remotereader import get_bytes_content
+from sensordata import SensorData
 from server import app, get_datastore, get_forwarder, get_publisher
 
 

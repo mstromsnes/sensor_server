@@ -1,4 +1,5 @@
 from fastapi import WebSocket
+
 from sensor import SensorReading
 
 

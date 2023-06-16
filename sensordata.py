@@ -1,16 +1,13 @@
+from io import BytesIO
+from pathlib import Path
+from typing import Union
+
+import pandas as pd
 import pandera as pa
 from pandera.typing import Index, Series
+
+from format import JSONFormat, ParquetFormat, SerializedDataFrame, make_type_error
 from sensor import Sensor, SensorReading, SensorType, Unit, make_dtype_kwargs
-import pandas as pd
-from typing import Union
-from pathlib import Path
-from format import (
-    SerializedDataFrame,
-    make_type_error,
-    ParquetFormat,
-    JSONFormat,
-)
-from io import BytesIO
 
 
 class ParquetFormatSensorData(ParquetFormat):

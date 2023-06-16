@@ -1,7 +1,8 @@
 from hypothesis import given
-from tests.strats import sensor_data
-from sensordata import SensorData
+
 from format import SerializedDataFrame
+from sensordata import SensorData
+from tests.strats import sensor_data
 
 
 @given(dataframe=sensor_data())

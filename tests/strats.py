@@ -2,7 +2,8 @@ import pandas as pd
 from hypothesis import strategies as st
 
 from parquetmanager import start_of_week_timestamp
-from sensor import SENSOR_COMBINATIONS, SensorData, SensorReading
+from sensor import SENSOR_COMBINATIONS, SensorReading
+from sensordata import SensorData
 
 MIN_TIMESTAMP = pd.Timestamp(year=2023, month=5, day=17)
 MAX_TIMESTAMP = pd.Timestamp(year=2024, month=5, day=17)

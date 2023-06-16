@@ -2,19 +2,15 @@ import logging
 from typing import Optional, Sequence
 
 import pandas as pd
-from pathlib import Path
-from typing import Optional
-from format import SerializationFormat, SerializedDataFrame
 import pandera as pa
 from pandera.errors import SchemaError
 
 import remotereader
+from format import SerializationFormat, SerializedDataFrame
 from parquetmanager import ParquetManager
-from sensor import SensorData, SensorReading
-from sensorreadingqueue import SensorReadingQueue
-import logging
 from sensor import SensorReading
 from sensordata import SensorData
+from sensorreadingqueue import SensorReadingQueue
 
 log = logging.getLogger("datastore")
 

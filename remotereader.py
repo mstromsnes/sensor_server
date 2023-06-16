@@ -6,7 +6,7 @@ import httpx
 import pandera as pa
 from fastapi import HTTPException
 
-from format import SerializationFormat, ParquetFormat, JSONFormat, SerializedDataFrame
+from format import JSONFormat, ParquetFormat, SerializationFormat, SerializedDataFrame
 
 logger = logging.getLogger("remotereader")
 

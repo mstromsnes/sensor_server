@@ -1,9 +1,12 @@
-from datastore import SensorReadingQueue
-from .conftest import queue
-from tests.strats import sensor_reading
-from hypothesis import given
-import hypothesis.strategies as st
 from functools import partial
+
+import hypothesis.strategies as st
+from hypothesis import given
+
+from datastore import SensorReadingQueue
+from tests.strats import sensor_reading
+
+from .conftest import queue
 
 
 @given(

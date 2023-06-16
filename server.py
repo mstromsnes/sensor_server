@@ -6,28 +6,17 @@ from typing import Annotated, Union
 
 import pandas as pd
 import uvicorn
-from fastapi import (
-    BackgroundTasks,
-    Body,
-    Depends,
-    FastAPI,
-    Request,
-    WebSocket,
-    WebSocketDisconnect,
-)
+from fastapi import (BackgroundTasks, Body, Depends, FastAPI, Request,
+                     WebSocket, WebSocketDisconnect)
 from fastapi.responses import PlainTextResponse, Response
 from fastapi_utils.tasks import repeat_every
 
 import remotereader
 from datastore import DataStore
-from sensordata import SensorData
-from datetime import datetime
-from typing import Annotated, Union
-from pathlib import Path
-import pandas as pd
 from forwarding import ForwardingManager
 from publisher import Publisher
 from sensor import SensorReading
+from sensordata import SensorData
 
 
 def dev_mode():

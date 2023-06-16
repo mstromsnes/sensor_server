@@ -1,9 +1,9 @@
+from io import BytesIO
+from pathlib import Path
+from typing import Callable, Protocol, Union, runtime_checkable
+
 import pandas as pd
 from pandas import DataFrame
-from io import BytesIO
-from typing import Union, Callable
-from pathlib import Path
-from typing import Protocol, runtime_checkable
 
 SerializedDataFrame = Union[str, bytes, BytesIO]
 
