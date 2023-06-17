@@ -1,3 +1,4 @@
+from functools import cache
 from io import BytesIO
 from pathlib import Path
 from typing import Union
@@ -24,7 +25,7 @@ class ParquetFormatSensorData(ParquetFormat):
         actual_close = buffer.close
         buffer.close = lambda: None
         df = df.reset_index()
-        df.to_parquet(buffer)
+        df.to_parquet(buffer)  # type: ignore
         contents = buffer.getvalue()
         actual_close()
         return contents
@@ -84,16 +85,16 @@ class JSONFormatSensorData(JSONFormat):
 
 class SensorDataModel(pa.DataFrameModel):
     sensor_type: Index[pd.CategoricalDtype] = pa.Field(
-        dtype_kwargs=make_dtype_kwargs(SensorType), isin=SensorType.values()
+        dtype_kwargs=make_dtype_kwargs(SensorType), isin=SensorType.values()  # type: ignore
     )
     sensor: Index[pd.CategoricalDtype] = pa.Field(
-        dtype_kwargs=make_dtype_kwargs(Sensor), isin=Sensor.values()
+        dtype_kwargs=make_dtype_kwargs(Sensor), isin=Sensor.values()  # type: ignore
     )
     timestamp: Index[pa.DateTime]
 
     reading: Series[float]
     unit: Series[pd.CategoricalDtype] = pa.Field(
-        dtype_kwargs=make_dtype_kwargs(Unit), isin=Unit.values()
+        dtype_kwargs=make_dtype_kwargs(Unit), isin=Unit.values()  # type: ignore
     )
 
 
@@ -122,10 +123,10 @@ class SensorData:
         """Convert columns to appropriate dtypes."""
         df["timestamp"] = pd.to_datetime(df["timestamp"])
         df["sensor_type"] = pd.Categorical(
-            df["sensor_type"], **make_dtype_kwargs(SensorType)
+            df["sensor_type"], **make_dtype_kwargs(SensorType)  # type: ignore
         )
-        df["sensor"] = pd.Categorical(df["sensor"], **make_dtype_kwargs(Sensor))
-        df["unit"] = pd.Categorical(df["unit"], **make_dtype_kwargs(Unit))
+        df["sensor"] = pd.Categorical(df["sensor"], **make_dtype_kwargs(Sensor))  # type: ignore
+        df["unit"] = pd.Categorical(df["unit"], **make_dtype_kwargs(Unit))  # type: ignore
         return df
 
     @classmethod
@@ -141,6 +142,7 @@ class SensorData:
         return df
 
     @classmethod
+    @cache
     def construct_empty_dataframe(cls) -> pd.DataFrame:
         dict_base = {key: [] for key in cls.Model._collect_fields().keys()}
         df = pd.DataFrame(dict_base)

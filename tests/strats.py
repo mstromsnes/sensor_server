@@ -6,7 +6,7 @@ from sensor import SENSOR_COMBINATIONS, SensorReading
 from sensordata import SensorData
 
 MIN_TIMESTAMP = pd.Timestamp(year=2023, month=5, day=17)
-MAX_TIMESTAMP = pd.Timestamp(year=2024, month=5, day=17)
+MAX_TIMESTAMP = pd.Timestamp(year=2033, month=5, day=17)
 
 
 @st.composite
@@ -24,10 +24,12 @@ def sensor_reading(draw):
         if sensor_type == "temperature" and unit == "C":
             min_value = -273.15
             max_value = 1000.0
+            return draw(st.floats(min_value, max_value))
         if sensor_type == "humidity" and unit == "%":
             min_value = 0.0
             max_value = 100.0
-        return draw(st.floats(min_value, max_value))
+            return draw(st.floats(min_value, max_value))
+        raise KeyError("Unhandled combination of sensor_type and unit")
 
     sensor_type, sensor = draw(st.sampled_from(SENSOR_COMBINATIONS))
     timestamp: pd.Timestamp = draw(
@@ -50,7 +52,7 @@ def sensor_reading(draw):
 
 @st.composite
 def sensor_data(draw: st.DrawFn):
-    list_of_readings = [draw(sensor_reading()) for _ in range(30)]
+    list_of_readings = draw(st.lists(sensor_reading()))
     return SensorData.make_dataframe_from_list_of_readings(
         list_of_readings
     ).sort_index()

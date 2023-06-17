@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import hypothesis
-import hypothesis.strategies
 import pytest
 
 from datastore import DataStore, SensorReadingQueue
@@ -18,15 +16,6 @@ def create_sensor_data():
 
 def queue(maxlen: int) -> SensorReadingQueue:
     return SensorReadingQueue(maxlen=maxlen)
-
-
-def filled_queue(maxlen: int = 10):
-    full_queue = queue(maxlen)
-    readings = hypothesis.strategies.data()
-    for _ in range(maxlen):
-        reading = readings.draw(sensor_reading())
-        full_queue.add_reading(next(reading), lambda: ...)
-    return full_queue
 
 
 @pytest.fixture(scope="module")
