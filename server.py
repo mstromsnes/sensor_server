@@ -2,14 +2,22 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Union
+from typing import Annotated, Union, Optional
 
 import pandas as pd
 import uvicorn
-from fastapi import (BackgroundTasks, Body, Depends, FastAPI, Request,
-                     WebSocket, WebSocketDisconnect)
+from fastapi import (
+    BackgroundTasks,
+    Body,
+    Depends,
+    FastAPI,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.responses import PlainTextResponse, Response
 from fastapi_utils.tasks import repeat_every
+from fastapi.exceptions import HTTPException
 
 import remotereader
 from datastore import DataStore
@@ -18,16 +26,19 @@ from publisher import Publisher
 from sensor import SensorReading
 from sensordata import SensorData
 
+from format import SerializationFormat
+
 
 def dev_mode():
     return Path("dev").exists()
 
 
-PROXY = "http://192.168.4.141:8000" if dev_mode() else None
+if __name__ == "__main__":
+    PROXY = "http://192.168.4.141:8000" if dev_mode() else None
 
-DATASTORE = DataStore(proxy=PROXY)
-PUBLISHER = Publisher()
-FORWARDER = ForwardingManager()
+    DATASTORE = DataStore(proxy=PROXY)
+    PUBLISHER = Publisher()
+    FORWARDER = ForwardingManager()
 
 
 def get_datastore():
@@ -59,10 +70,12 @@ def archive_task():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if dev_mode():
+        assert PROXY is not None
         remotereader.register_as_forwarding_server(PROXY)
     await archive_task()
     yield
     if dev_mode():
+        assert PROXY is not None
         remotereader.remove_as_forwarding_server(PROXY)
     archive_data()
 
@@ -88,37 +101,35 @@ async def tail(datastore: DataStoreDep):
     return str(datastore.tail())
 
 
-@app.post("/archive/parquet/")
-def send_data_since_parquet(
-    timestamp: Annotated[datetime, Body()], datastore: DataStoreDep
-) -> Response:
-    coerced_timestamp = pd.Timestamp(timestamp)
-    parquet_bytes = datastore.serialize_archive(
-        timestamp=coerced_timestamp, format=SensorData.Parquet
-    )
-    return Response(parquet_bytes)
-
-
 @app.get("/archive/parquet/")
-def send_archive_parquet(datastore: DataStoreDep) -> Response:
-    parquet_bytes = datastore.serialize_archive()
+def send_full_archive_parquet(datastore: DataStoreDep) -> Response:
+    parquet_bytes = datastore.serialize_archive(format=SensorData.Parquet)
     return Response(parquet_bytes)
 
 
-@app.post("/archive/json/")
-def send_data_since_json(
-    timestamp: Annotated[datetime, Body()], datastore: DataStoreDep
-):
-    coerced_timestamp = pd.Timestamp(timestamp)
-    json = datastore.serialize_archive(
-        timestamp=coerced_timestamp, format=SensorData.JSON
-    )
-    return json
+@app.post("/archive/parquet/")
+async def send_data_in_interval_parquet(
+    datastore: DataStoreDep,
+    start: Union[pd.Timestamp, None] = None,
+    end: Union[pd.Timestamp, None] = None,
+) -> Response:
+    parquet_bytes = get_serialized_archive(datastore, start, end, SensorData.Parquet)
+    return Response(parquet_bytes)
 
 
 @app.get("/archive/json/")
-def send_archive_json(datastore: DataStoreDep):
+def send_full_archive_json(datastore: DataStoreDep):
     json = datastore.serialize_archive(format=SensorData.JSON)
+    return json
+
+
+@app.post("/archive/json/")
+async def send_data_in_interval_json(
+    datastore: DataStoreDep,
+    start: Union[pd.Timestamp, None] = None,
+    end: Union[pd.Timestamp, None] = None,
+):
+    json = get_serialized_archive(datastore, start, end, format=SensorData.JSON)
     return json
 
 
@@ -155,6 +166,20 @@ async def handle_subscriber(websocket: WebSocket, publisher: PublisherDep):
             await websocket.receive_text()
     except WebSocketDisconnect:
         publisher.disconnect(websocket)
+
+
+def get_serialized_archive(
+    datastore: DataStore,
+    start: Optional[pd.Timestamp],
+    end: Optional[pd.Timestamp],
+    format: SerializationFormat,
+):
+    if start is not None and end is not None and start > end:
+        raise HTTPException(
+            422, "Ending timestamp must be later than starting timestamp"
+        )
+    serialized_result = datastore.serialize_archive(start=start, end=end, format=format)
+    return serialized_result
 
 
 def main():
