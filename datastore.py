@@ -49,38 +49,48 @@ class DataStore:
     def serialize_archive(
         self,
         *,
-        timestamp: Optional[pd.Timestamp] = None,
+        start: Optional[pd.Timestamp] = None,
+        end: Optional[pd.Timestamp] = None,
         format: SerializationFormat = SensorData.Parquet,
     ) -> SerializedDataFrame:
         """If no timestamp is provided, returns all data currently in memory, as decided by ParquetManager or Proxy.
         If a timestamp is provided, provides all data from the time given to now, possibly loading more data from storage if necessary.
         """
-        if timestamp is None:
+        if start is None and end is None:
             return format.serialize(self.dataframe)
-        df = self.get_archive_since(timestamp)
+        df = self.get_archive_since(start, end)
         return format.serialize(df)
 
-    def get_archive_since(self, timestamp: Optional[pd.Timestamp]) -> pd.DataFrame:
+    def get_archive_since(
+        self, start: Optional[pd.Timestamp], end: Optional[pd.Timestamp]
+    ) -> pd.DataFrame:
         # Slices to all entries of the highest level index; SensorType, all entries of the next level index; Sensor, and then to all values at timestamp and later
-        quick_df = self._get_fast_data(timestamp)
-        in_memory_df = self._get_in_memory_data(timestamp)
-        slow_df = self._get_archived_data(timestamp)
+        quick_df = self._get_fast_data(start, end)
+        in_memory_df = self._get_in_memory_data(start, end)
+        slow_df = self._get_archived_data(start, end)
         df = self._merge_archives([slow_df, in_memory_df, quick_df])
         return df
 
-    def _get_fast_data(self, timestamp: Optional[pd.Timestamp]) -> pd.DataFrame:
-        return self._queue.get_since_timestamp(timestamp)
+    def _get_fast_data(
+        self, start: Optional[pd.Timestamp], end: Optional[pd.Timestamp]
+    ) -> pd.DataFrame:
+        return self._queue.get_data_in_interval(start, end)
 
-    def _get_in_memory_data(self, timestamp: Optional[pd.Timestamp]) -> pd.DataFrame:
-        idx = (slice(None), slice(None), slice(timestamp, None))
+    def _get_in_memory_data(
+        self, start: Optional[pd.Timestamp], end: Optional[pd.Timestamp]
+    ) -> pd.DataFrame:
+            return SensorData.construct_empty_dataframe()
+        idx = (slice(None), slice(None), slice(start, end))
         return self._dataframe.loc[idx, :]
 
-    def _get_archived_data(self, timestamp: Optional[pd.Timestamp]) -> pd.DataFrame:
+    def _get_archived_data(
+        self, start: Optional[pd.Timestamp], end: Optional[pd.Timestamp]
+    ) -> pd.DataFrame:
         if (
             self.parquet_manager is not None
             and timestamp < ParquetManager.earliest_date()
         ):
-            return self.parquet_manager.get_historic_data(timestamp, None)
+            return self.parquet_manager.get_historic_data(start, end)
         return SensorData.construct_empty_dataframe()
 
     def _merge_archives(self, dataframes: list[pd.DataFrame]) -> pd.DataFrame:

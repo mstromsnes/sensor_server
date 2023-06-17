@@ -1,6 +1,6 @@
 import itertools
 from collections import deque
-from typing import Callable
+from typing import Callable, Optional
 
 import pandas as pd
 

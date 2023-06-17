@@ -130,7 +130,7 @@ class ParquetManager(AbstractParquetManager):
         return start_of_week(*last_week)
 
     def get_historic_data(
-        self, start: datetime.datetime, end: Optional[datetime.datetime]
+        self, start: Optional[datetime.datetime], end: Optional[datetime.datetime]
     ) -> pd.DataFrame:
         """The default behaviour is to only load the last two weeks of data. If data earlier than that is requested
         this function should be called to load it. It takes a beginning and optional end.
@@ -146,7 +146,7 @@ class ParquetManager(AbstractParquetManager):
         return SensorData.repair_dataframe(df).sort_index()
 
     def _load_old_data(
-        self, start: datetime.datetime, end: Optional[datetime.datetime]
+        self, start: Optional[datetime.datetime], end: Optional[datetime.datetime]
     ) -> pd.DataFrame:
         start_iso = start.isocalendar()
         if end is None:
