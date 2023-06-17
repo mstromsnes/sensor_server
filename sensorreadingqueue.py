@@ -33,20 +33,58 @@ class SensorReadingQueue:
             self._on_full_callback(self.get_unsynced_queue())
             self._counter = 0
 
-    def contains(self, timestamp: pd.Timestamp):
-        return self._queue and timestamp >= pd.Timestamp(self._queue[0].timestamp)
+    def might_contain_data_newer_than_timestamp(
+        self, timestamp: Optional[pd.Timestamp]
+    ):
+        return self._queue and (
+            timestamp is None or pd.Timestamp(self._queue[-1].timestamp) >= timestamp
+        )
 
-    def get_since_timestamp(self, timestamp: pd.Timestamp) -> pd.DataFrame:
-        if not self.contains(timestamp):
+    def might_contain_data_older_than_timestamp(
+        self, timestamp: Optional[pd.Timestamp]
+    ):
+        return self._queue and (
+            timestamp is None or timestamp >= pd.Timestamp(self._queue[0].timestamp)
+        )
+
+    def get_data_in_interval(
+        self, start: Optional[pd.Timestamp], end: Optional[pd.Timestamp]
+    ) -> pd.DataFrame:
+        # if there isn't any data more recent than start, we can just return empty
+        # if there isn't any data older than end, we can just return empty
+        if not self.might_contain_data_newer_than_timestamp(
+            start
+        ) or not self.might_contain_data_older_than_timestamp(end):
             return SensorData.construct_empty_dataframe()
+        if start is None:
+            start_idx = 0
+        else:
+            start_idx = self._find_first_entry_older_than_timestamp(start)
+        if end is None:
+            end_idx = len(self._queue)
+        else:
+            end_idx = self._find_last_entry_newer_than_timestamp(end)
+        list_of_readings = list(itertools.islice(self._queue, start_idx, end_idx))
+        return SensorData.make_dataframe_from_list_of_readings(list_of_readings)
+
+    def _find_first_entry_older_than_timestamp(self, timestamp: pd.Timestamp):
+        # Most lookups will be for data near the end of the queue, so start looking from the end
         it = reversed(self._queue)
         for i, reading in enumerate(it):
+            # if the newest timestamp is more recent than the one we're looking for, keep going backwards into the list
             if timestamp <= pd.Timestamp(reading.timestamp):
                 continue
-        list_of_readings = list(
-            itertools.islice(self._queue, -i - 1 + len(self._queue), len(self._queue))
-        )
-        return SensorData.make_dataframe_from_list_of_readings(list_of_readings)
+            # Once we find a timestamp older than the one we're looking for, stop and return the index as if we looked from 0.
+            return len(self._queue) - i
+        # If we never find a timestamp older than the one we're looking for, return 0 indicating the whole queue is newer than what we're looking for
+        return 0
+
+    def _find_last_entry_newer_than_timestamp(self, timestamp: pd.Timestamp):
+        for i, reading in enumerate(self._queue):
+            if pd.Timestamp(reading.timestamp) <= timestamp:
+                continue
+            return i
+        return len(self._queue)
 
     def get_unsynced_queue(self):
         if len(self._queue) < self._maxlen:
