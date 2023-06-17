@@ -7,7 +7,7 @@ from pandera.errors import SchemaError
 
 import remotereader
 from format import SerializationFormat, SerializedDataFrame
-from parquetmanager import ParquetManager
+from parquetmanager import ParquetManager, AbstractParquetManager
 from sensor import SensorReading
 from sensordata import SensorData
 from sensorreadingqueue import SensorReadingQueue
@@ -19,7 +19,7 @@ class DataStore:
     def __init__(
         self,
         *,
-        manager=ParquetManager(),
+        manager: AbstractParquetManager = ParquetManager(),
         proxy=None,
         queue=SensorReadingQueue(maxlen=10000),
     ):
@@ -79,16 +79,35 @@ class DataStore:
     def _get_in_memory_data(
         self, start: Optional[pd.Timestamp], end: Optional[pd.Timestamp]
     ) -> pd.DataFrame:
+        if (
+            self._dataframe.empty
+            or (
+                start is not None
+                and self._dataframe.index.get_level_values(2).max() < start
+            )
+            or (
+                end is not None
+                and self._dataframe.index.get_level_values(2).min() > end
+            )
+        ):
             return SensorData.construct_empty_dataframe()
         idx = (slice(None), slice(None), slice(start, end))
         return self._dataframe.loc[idx, :]
+
+    def _oldest_date(self):
+        return self._dataframe.index.get_level_values(2).min()
 
     def _get_archived_data(
         self, start: Optional[pd.Timestamp], end: Optional[pd.Timestamp]
     ) -> pd.DataFrame:
         if (
             self.parquet_manager is not None
-            and timestamp < ParquetManager.earliest_date()
+            and (start is None or self._dataframe.empty or start < self._oldest_date())
+            and (
+                end is None
+                or self.parquet_manager.empty
+                or end > self.parquet_manager.oldest_date()
+            )
         ):
             return self.parquet_manager.get_historic_data(start, end)
         return SensorData.construct_empty_dataframe()
