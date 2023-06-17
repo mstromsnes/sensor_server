@@ -56,12 +56,14 @@ class ParquetBackend:
 
     def load_dataframe(self, parquet_file: Path) -> pd.DataFrame:
         try:
-            return Format.Parquet.load(self.archive_folder / parquet_file)
+            return SensorData.Parquet.load(
+                self.archive_folder / parquet_file.with_suffix(".parquet")
+            )
         except Exception:
             return SensorData.construct_empty_dataframe()
 
     def save_dataframe(self, dataframe: pd.DataFrame, parquet_file: Path):
-        Format.Parquet.write(dataframe, self.archive_folder / parquet_file)
+        SensorData.Parquet.write(dataframe, self.archive_folder / parquet_file)
 
 
 class DictBackend:
