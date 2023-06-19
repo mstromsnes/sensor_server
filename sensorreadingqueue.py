@@ -31,7 +31,7 @@ class SensorReadingQueue:
         self._counter += 1
         if self._counter == self._maxlen:
             self._on_full_callback(self.get_unsynced_queue())
-            self._counter = 0
+            self.reset_counter()
 
     def might_contain_data_newer_than_timestamp(
         self, timestamp: Optional[pd.Timestamp]
@@ -97,7 +97,7 @@ class SensorReadingQueue:
             )
 
     def reset_counter(self):
-        if len(self._queue) < self._maxlen:
+        if len(self._queue) == self._maxlen:
             self._counter = 0
         else:
             self._counter = len(self._queue)

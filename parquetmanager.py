@@ -98,7 +98,9 @@ class ParquetBackend(ArchiveBackend):
             return SensorData.construct_empty_dataframe()
 
     def save_dataframe(self, dataframe: pd.DataFrame, parquet_file: Path):
-        SensorData.Parquet.write(dataframe, self.archive_folder / parquet_file)
+        SensorData.Parquet.write(
+            dataframe, self.archive_folder / parquet_file.with_suffix(".parquet")
+        )
 
     def archive_names(self) -> Iterable[str]:
         return map(lambda path: path.stem, self.archive_folder.glob("*"))
@@ -140,7 +142,7 @@ class ParquetManager(AbstractParquetManager):
         return pd.concat([last_week_df, current_week_df])
 
     def _load_single_week(self, year: int, week: int, *args) -> pd.DataFrame:
-        parquet_file = self._archive_name_for_week(year, week)
+        parquet_file = Path(self._archive_name_for_week(year, week))
         return self.backend.load_dataframe(parquet_file)
 
     def save_dataframe(self, dataframe: pd.DataFrame):
@@ -154,7 +156,7 @@ class ParquetManager(AbstractParquetManager):
         isoformat = week_starting_point.isocalendar()
         old_data = self._load_single_week(*isoformat)
         df = SensorData.repair_dataframe(pd.concat([old_data, dataframe])).sort_index()
-        self.backend.save_dataframe(df, self._archive_name_for_week(*isoformat))
+        self.backend.save_dataframe(df, Path(self._archive_name_for_week(*isoformat)))
 
     @staticmethod
     def _get_dataframe_week_ranges(df: pd.DataFrame) -> list[pd.Timestamp]:
